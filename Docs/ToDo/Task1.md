@@ -97,13 +97,13 @@ Identify events that stop delivery partners from working.
 
 Understand how parametric insurance works.
 
-- [ ] Definition of parametric insurance
-- [ ] Difference between traditional and parametric insurance
-- [ ] Trigger-based payout system
-- [ ] Examples of weather-based insurance
-- [ ] Examples of climate risk insurance
-- [ ] Examples of micro-insurance for workers
-- [ ] Frequency of disruptions
+- [X] Definition of parametric insurance
+- [X] Difference between traditional and parametric insurance
+- [X] Trigger-based payout system
+- [X] Examples of weather-based insurance
+- [X] Examples of climate risk insurance
+- [X] Examples of micro-insurance for workers
+- [X] Frequency of disruptions
 
 ---
 
@@ -112,21 +112,21 @@ Understand how parametric insurance works.
 Identify measurable triggers for automatic payouts.
 
 ## Weather Triggers
-- [ ] Rainfall threshold
-- [ ] Temperature threshold
-- [ ] Storm alerts
-- [ ] Flood alerts
+- [X] Rainfall threshold
+- [X] Temperature threshold
+- [X] Storm alerts
+- [X] Flood alerts
 
 ## Pollution Triggers
-- [ ] AQI threshold levels
+- [X] AQI threshold levels
 
 ## Platform Triggers
-- [ ] App outage duration
-- [ ] Order system downtime
+- [X] App outage duration
+- [X] Order system downtime
 
 ## Government Triggers
-- [ ] Curfew announcements
-- [ ] Public mobility restrictions
+- [X] Curfew announcements
+- [X] Public mobility restrictions
 
 ---
 
@@ -135,21 +135,21 @@ Identify measurable triggers for automatic payouts.
 Find APIs and data sources needed to detect disruptions.
 
 ## Weather Data APIs
-- [ ] OpenWeather API
+- [X] OpenWeather API
 - [ ] WeatherAPI
 - [ ] Government meteorological data
 
 ## Pollution Data APIs
-- [ ] AQI monitoring APIs
+- [X] AQI monitoring APIs
 - [ ] Government pollution dashboards
 
 ## Traffic Data
 - [ ] Google Maps Traffic API
-- [ ] MapMyIndia traffic data
+- [X] MapMyIndia traffic data
 
 ## Platform Activity Data
-- [ ] Simulated order activity
-- [ ] Delivery platform outage monitoring
+- [X] Simulated order activity
+- [X] Delivery platform outage monitoring
 
 ---
 
@@ -158,16 +158,16 @@ Find APIs and data sources needed to detect disruptions.
 Understand possible fraud scenarios.
 
 ## Possible Fraud Cases
-- [ ] Location spoofing
-- [ ] Fake disruption claims
-- [ ] Duplicate payout attempts
-- [ ] Inactive worker claiming payouts
+- [X] Location spoofing
+- [X] Fake disruption claims
+- [X] Duplicate payout attempts
+- [X] Inactive worker claiming payouts
 
 ## Fraud Prevention Ideas
-- [ ] GPS location verification
-- [ ] Worker activity validation
-- [ ] AI anomaly detection
-- [ ] Duplicate claim prevention system
+- [X] GPS location verification
+- [X] Worker activity validation
+- [X] AI anomaly detection
+- [X] Duplicate claim prevention system
 
 ---
 
@@ -221,7 +221,7 @@ Document insights from research.
 - [ ] Completed research documentation
 - [ ] Defined delivery partner persona
 - [ ] Identified disruption events
-- [ ] Defined parametric triggers
+- [X] Defined parametric triggers
 - [ ] Weekly pricing assumptions
-- [ ] Data sources identified
-- [ ] Fraud risks identified
+- [X] Data sources identified
+- [X] Fraud risks identified
