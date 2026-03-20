@@ -1,4 +1,4 @@
-# 🛡️ GigGuard
+#  GigGuard
 **AI-Powered Parametric Insurance for India’s Gig Economy**  
 *Guidewire DEVTrails 2026 - Phase 1: Ideation & Foundation*
 
