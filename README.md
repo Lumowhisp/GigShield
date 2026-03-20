@@ -27,8 +27,21 @@ Gig workers operate on weekly cash flows. GigGuard utilizes a **3-Tier Weekly Pr
 
 *Note: Premiums are dynamically calibrated by our AI based on hyper-local disruption histories (e.g., flood-prone zones carry a dynamically adjusted premium).*
 
+**💡 Premium Justification & Scale:**
+* **Affordability:** At ₹30–₹100/week, the premium requires just ~0.5% - 1.6% of a worker's weekly net income (₹6,000–₹7,000), ensuring rapid gig-economy adoption.
+* **Income Replacement:** ₹500 replaces a lost "Peak Shift" (e.g., 4 hrs during an evening cloudburst), ₹1,200 directly maps to a full day of net earnings, and ₹2,500 safeguards against severe multi-day disruptions (e.g., 48-hour severe smog). 
+* **Actuarial Feasibility:** Although urban disruptions happen 50-70 days a year, combining precise parametric API triggers with the AI risk engine (adjusting premiums higher for high-risk zones) guarantees the claim liquidity pool remains consistently profitable.
+
+### 🧮 Payout Calculation Models
+To ensure fairness and scale with the severity of disruptions, the platform utilizes advanced mathematical models for payouts:
+* **Fixed Model:** Constant binary payout triggered immediately (used for simple Basic Tier events).
+* **Scalable Model:** Payout scales proportionally to the severity of the event: `Payout = k × (Actual Value − Threshold)`
+* **Multi-Trigger Scoring:** Uses weighted logic spanning multiple data points: `Score = (w₁ × Rainfall) + (w₂ × AQI) + (w₃ × Temp)` -> `IF Score > Threshold THEN Payout`
+* **Income-Based Validation:** Caps potential payouts directly against algorithmic predictions of lost earnings: `Payout = min(Predicted_Income × Loss_Factor, Max_Limit)`
+
 **Objective API Triggers:**
-* **Environmental:** Heavy Rainfall (>40mm/24h), Extreme Heat (>45°C), or Severe AQI (>300). *(Source: OpenWeatherMap API)*
+* **Environmental:** Heavy Rainfall (>40mm/24h), Extreme Heat (>45°C), or **Intelligent AQI**. *(Source: OpenWeatherMap API)*
+  * *Smart AQI Logic:* Prevents unprofitable payouts from brief spikes. (Partial: AQI > 300 for 24h | Full: AQI > 400 for 48h | Immediate: AQI > 450).
 * **Infrastructure/Social:** Unplanned curfews or severe route blockages. *(Source: MapMyIndia Traffic/Incident APIs)*
 * **Platform Tech:** Extended primary delivery app outages. *(Source: Simulated Uptime APIs)*
 
@@ -73,7 +86,7 @@ This repository is a **private team project** developed for an AI Innovation Hac
 - Abhishek Yadav *(Research)*
 
 ### 📌 Development Workflow
-1. **Clone the Repository:** `git clone <repository-url>`
+1. **Clone the Repository:** `git clone https://github.com/Lumowhisp/GigShield.git`
 2. **Create a Feature Branch:** `git checkout -b feature/feature-name`
 3. **Commit Your Changes:** `git commit -m "feat: added weather trigger monitoring"`
 4. **Push & PR:** Push to origin and open a Pull Request to `main`. Do not push directly to `main`.
