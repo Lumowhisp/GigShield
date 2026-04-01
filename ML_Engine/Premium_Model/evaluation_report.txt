@@ -2,7 +2,7 @@
   GIGGUARD DISRUPTION PIPELINE — MODEL EVALUATION REPORT (v4)
   Parametric Insurance for Gig Workers
 ======================================================================
-  Target    : expected_loss_inr (reality-grounded, IMD thresholds)
+  Target    : loss_ratio (reality-grounded, IMD thresholds)
   Model     : XGBRegressor (n=300, lr=0.05, depth=5)
   Train     : 2015–2022  |  Test: 2023–2025
   CV        : Walk-forward, 5 folds (expanding window)
@@ -10,53 +10,49 @@
 
 ----------------------------------------------------------------------
   VERSION   : PURE
-  Features  : 29
-  Train R²  : 0.9824
-  Test  R²  : 0.9577
-  Overfit   : 0.0247  (✅ excellent)
-  MAE       : ₹11.89 per day
+  Features  : 24
+  Train R²  : 0.9961
+  Test  R²  : 0.9654
+  Overfit   : 0.0306  (✅ excellent)
+  MAE       : ₹0.87 per day
 
   Top 10 Feature Importances:
-    rolling_7d_rain                        0.3703  █████████████████████████████████████
-    rain_squared                           0.2484  ████████████████████████
-    precipitation_sum                      0.2126  █████████████████████
-    precipitation_hours                    0.0360  ███
-    city_Mumbai                            0.0243  ██
-    seasonal_factor                        0.0170  █
-    city_Surat                             0.0139  █
-    tail_event                             0.0092  
-    city_Delhi                             0.0057  
-    rolling_3d_temp                        0.0057  
+    rain_squared                           0.4237  ██████████████████████████████████████████
+    precipitation_sum                      0.3531  ███████████████████████████████████
+    is_coastal                             0.0346  ███
+    distance_to_coast                      0.0333  ███
+    tail_event                             0.0271  ██
+    elevation                              0.0270  ██
+    temp_squared                           0.0235  ██
+    rain_wind_interaction                  0.0225  ██
+    wind_gusts_10m_max                     0.0139  █
+    temperature_2m_max                     0.0117  █
 
-  📐 Calibration Error: ₹2.06/day
+  📐 Calibration Error: ₹0.73/day
     Bin                   Count  Predicted     Actual    Error
-    ₹0–0                    724 ₹    0.14 ₹    0.00 ₹  0.14
-    ₹0–1                    737 ₹    0.39 ₹    0.00 ₹  0.39
-    ₹1–1                    731 ₹    0.79 ₹    0.11 ₹  0.68
-    ₹1–8                    730 ₹    3.44 ₹    0.84 ₹  2.60
-    ₹8–59                   730 ₹   34.67 ₹   39.61 ₹  4.94
-    ₹59–97                  731 ₹   76.19 ₹   79.54 ₹  3.35
-    ₹97–150                 730 ₹  122.84 ₹  125.59 ₹  2.75
-    ₹150–228                731 ₹  187.39 ₹  187.76 ₹  0.37
-    ₹228–316                730 ₹  263.40 ₹  264.55 ₹  1.15
-    ₹316–1161               731 ₹  473.48 ₹  477.68 ₹  4.20
+    ₹0–0                    461 ₹    0.01 ₹    0.00 ₹  0.01
+    ₹0–0                   1702 ₹    0.02 ₹    0.00 ₹  0.02
+    ₹0–0                    520 ₹    0.05 ₹    0.00 ₹  0.05
+    ₹0–1                    435 ₹    0.32 ₹    0.00 ₹  0.32
+    ₹1–74                   391 ₹   35.80 ₹   38.05 ₹  2.25
+    ₹74–603                 390 ₹  160.20 ₹  161.94 ₹  1.74
 
   🌊 Tail Risk (P95+):
-    Tail R²  : 0.6497
-    Tail MAE : ₹72.68
+    Tail R²  : 11.9978
+    Tail MAE : ₹0.92
 
   Walk-forward CV Folds:
     Fold   Test Year          R²        MAE        Gap
-    1      2019           0.9611 ₹   10.81     0.0275
-    2      2020           0.9602 ₹   11.83     0.0262
-    3      2021           0.9622 ₹   11.10     0.0227
-    4      2022           0.9608 ₹   11.41     0.0227
-    5      2023           0.9634 ₹   10.08     0.0190
-    AVG                   0.9615 ₹   11.05
+    1      2019           0.9226 ₹    1.03     0.0739
+    2      2020           0.9730 ₹    0.79     0.0227
+    3      2021           0.9793 ₹    0.53     0.0170
+    4      2022           0.9545 ₹    1.01     0.0417
+    5      2023           0.9912 ₹    0.45     0.0049
+    AVG                   0.9641 ₹    0.76
 
 ======================================================================
   ✅ MODEL : PURE
-     Test R² = 0.9577  |  MAE = ₹11.89/day  |  Cal Error = ₹2.06
+     Test R² = 0.9654  |  MAE = ₹0.87/day  |  Cal Error = ₹0.73
 
   Interpretation:
     R² > 0.85         → excellent for reality-grounded target

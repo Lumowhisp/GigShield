@@ -21,12 +21,23 @@ def export():
     print("  → Loading ml_features_pure.csv...")
     df = pd.read_csv("ml_features_pure.csv")
 
-    targets = df["expected_loss_inr"].values
-    features_df = df.drop(columns=["date", "expected_loss_inr", "disruption_occurred"])
+    targets = df["loss_ratio"].values
+    features_df = df.drop(columns=[
+        "date", "city", "expected_loss_inr", "loss_ratio", 
+        "daily_income_inr", "disruption_occurred"
+    ], errors='ignore')
     cols = features_df.columns.tolist()
     X = features_df.fillna(0).values
 
     print(f"  → Training XGBRegressor ({len(cols)} features, {len(X):,} rows)...")
+
+    mc = []
+    for f in cols:
+        if any(k in f for k in ["rain", "precipitation", "wind", "storm"]):
+            mc.append(1)
+        else:
+            mc.append(0)
+    mc_tuple = tuple(mc)
 
     model = XGBRegressor(
         n_estimators=300,
@@ -36,6 +47,7 @@ def export():
         colsample_bytree=0.8,
         reg_lambda=2,
         random_state=42,
+        monotone_constraints=mc_tuple
     )
     model.fit(X, targets)
 

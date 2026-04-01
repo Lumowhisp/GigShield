@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "GigGuard",
+    "slug": "gigguard",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0a0e1a",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "GigGuard needs your location to calculate zone-specific insurance premiums based on local weather risk."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0e1a"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "GigGuard needs your location to calculate zone-specific insurance premiums based on local weather risk."
+        }
+      ],
+      "expo-asset"
+    ]
+  }
+}
