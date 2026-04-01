@@ -1,0 +1,26 @@
+======================================================================
+  GIGGUARD — CLAIMS-BASED RETRAINING REPORT
+  Warm-start fine-tuning on 75 worker monsoon 2024 claims
+======================================================================
+
+  Strategy : Residual boosting on top of pretrained model
+  Claims   : 75 workers × 122 days (Jun–Sep 2024)
+  Target   : observed_loss_ratio (real payout-derived)
+  Features : 24 (same as pretrained — fully compatible)
+
+  BEFORE vs AFTER (on claims data):
+    R²   : 0.7510  →  0.9705
+    MAE  : 0.0285  →  0.0078
+    Bias : +0.0285  →  +0.0051
+
+  What this means:
+    The pretrained model learned weather→loss from 10 years of
+    synthetic data. The correction layer adjusts for real-world
+    friction: under-reporting, job-type variance, behavioral noise.
+    Together they form a production-grade hybrid model.
+
+  Saved:
+    gigguard_model_v2.joblib      (pretrained base)
+    gigguard_correction.joblib    (claims correction layer)
+    gigguard_model_meta_v2.json   (updated metadata)
+======================================================================
