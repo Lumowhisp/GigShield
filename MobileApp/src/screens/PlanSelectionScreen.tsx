@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Image } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
 import PlanCard from '../components/PlanCard';
@@ -9,7 +9,7 @@ import type { PremiumResponse } from '../services/api';
 
 type RootStackParamList = {
   PlanSelection: { premiumData: PremiumResponse };
-  MainDashboard: { premiumData: PremiumResponse; activePlan: string };
+  MainTabs: { premiumData: PremiumResponse; activePlan: string };
 };
 
 type Props = {
@@ -20,6 +20,14 @@ type Props = {
 const LOTTIE_URLS = {
   zoneSafety: 'https://lottie.host/f501eb42-4ea2-4777-a980-bfe4bbcb4104/DxL7fJEhez.lottie',
   forecast: 'https://lottie.host/272b1111-cdda-4de2-a7df-f5dede69e1c1/VkfWArCJ5U.lottie',
+};
+
+const DISRUPTION_LOTTIES: Record<string, string> = {
+  heavy_rain: 'https://lottie.host/0d5e4c47-43b2-4700-8325-b3bd77ec70a5/SNcBwguIuy.lottie',
+  extreme_heat: 'https://lottie.host/84088923-1edc-418f-bb85-bc5a73ada6ec/BqvaS6soSP.lottie',
+  storm: 'https://lottie.host/a1472697-b52c-4de2-8b6d-50e174cfa393/9rIIiaF9vk.lottie',
+  flood_zone: 'https://lottie.host/28c36fdc-b9d9-465e-b56d-dce04003c5bc/NdEmTWppUw.lottie',
+  poor_visibility: 'https://lottie.host/cfbbb843-09e6-4207-aebb-4d120df152e2/YEIHwn6glE.lottie',
 };
 
 const RISK_COLORS: Record<string, string> = {
@@ -45,7 +53,7 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
   const handleActivate = () => {
     navigation.reset({
       index: 0,
-      routes: [{ name: 'MainDashboard', params: { premiumData, activePlan: selectedPlan } }],
+      routes: [{ name: 'MainTabs', params: { premiumData, activePlan: selectedPlan } }],
     });
   };
 
@@ -130,13 +138,24 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
           </View>
 
           {/* ─ Active triggers ─ */}
-          {premiumData.active_triggers_today.length > 0 && (
+          {premiumData.all_triggers_today && premiumData.all_triggers_today.filter(t => t.active).length > 0 && (
             <View style={styles.triggersBar}>
               <Text style={styles.triggersLabel}>ACTIVE NOW</Text>
               <View style={styles.triggersChips}>
-                {premiumData.active_triggers_today.map((t, i) => (
+                {premiumData.all_triggers_today.filter(t => t.active).map((t, i) => (
                   <View key={i} style={styles.triggerChip}>
-                    <Text style={styles.triggerIcon}>{t.icon}</Text>
+                    {DISRUPTION_LOTTIES[t.trigger_id] ? (
+                      <View style={styles.chipGif}>
+                        <LottieView
+                          source={{ uri: DISRUPTION_LOTTIES[t.trigger_id] }}
+                          autoPlay
+                          loop
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      </View>
+                    ) : (
+                      <Text style={styles.triggerIcon}>{t.icon}</Text>
+                    )}
                     <Text style={styles.triggerText}>{t.trigger_name.split(' ')[0]}</Text>
                   </View>
                 ))}
@@ -317,19 +336,13 @@ const styles = StyleSheet.create({
   },
   triggersChips: { flexDirection: 'row', gap: 8 },
   triggerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: borderRadius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.sm,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)'
   },
-  triggerIcon: { fontSize: 13, marginRight: 4 },
-  triggerText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: fontWeight.semibold,
-  },
+  triggerIcon: { fontSize: 16, marginRight: 6 },
+  chipGif: { width: 18, height: 18, marginRight: 6 },
+  triggerText: { fontSize: fontSize.sm, color: colors.textPrimary, fontWeight: fontWeight.bold },
 
   // Section labels
   sectionLabel: {

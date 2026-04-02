@@ -572,10 +572,12 @@ class ZoneProfile(BaseModel):
 
 
 class ForecastRisk(BaseModel):
+    """Aggregate 7-day forecast risk metrics."""
     trigger_days_count: int
     max_simultaneous_triggers: int
     coverage_extended: bool
     forecast_summary: str
+    daily_risks: list[float]  # Exposed for real-time tracking graphs
 
 
 class PremiumResponse(BaseModel):
@@ -584,7 +586,7 @@ class PremiumResponse(BaseModel):
     daily_income_inr: float
     date: str
     zone_profile: ZoneProfile
-    active_triggers_today: List[TriggerInfo]
+    all_triggers_today: List[TriggerInfo]
     forecast_risk: ForecastRisk
     forecast_loss_ratio_7d: float
     disruption_risk: str
@@ -756,7 +758,7 @@ async def predict_premium(req: PremiumRequest):
             zone_safety_score=zone_safety["zone_safety_score"],
             weekly_discount_inr=zone_safety["weekly_discount_inr"],
         ),
-        active_triggers_today=[
+        all_triggers_today=[
             TriggerInfo(
                 trigger_id=t.trigger_id,
                 trigger_name=t.trigger_name,
@@ -766,13 +768,14 @@ async def predict_premium(req: PremiumRequest):
                 loss_multiplier=t.loss_multiplier,
                 description=t.description,
             )
-            for t in today_result["triggers"] if t.active
+            for t in today_result["triggers"]
         ],
         forecast_risk=ForecastRisk(
             trigger_days_count=n_trigger_days,
             max_simultaneous_triggers=max_sim,
             coverage_extended=coverage_extended,
             forecast_summary=forecast_summary,
+            daily_risks=[round(float(r), 4) for r in day_preds],
         ),
         forecast_loss_ratio_7d=round(max(avg_loss_ratio, 0.02), 4),
         disruption_risk=risk_label(avg_loss_ratio),

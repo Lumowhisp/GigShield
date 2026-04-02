@@ -1,14 +1,21 @@
 import React from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import SplashScreen from './src/screens/SplashScreen';
 import WelcomeScreen from './src/screens/WelcomeScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import SignupScreen from './src/screens/SignupScreen';
 import LocationPermissionScreen from './src/screens/LocationPermissionScreen';
 import PlanSelectionScreen from './src/screens/PlanSelectionScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import CoverageScreen from './src/screens/CoverageScreen';
+import WalletScreen from './src/screens/WalletScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from './src/theme';
 
@@ -17,12 +24,22 @@ import type { PremiumResponse } from './src/services/api';
 export type RootStackParamList = {
   Splash: undefined;
   Welcome: undefined;
+  Login: undefined;
+  Signup: undefined;
   Location: undefined;
   PlanSelection: { premiumData: PremiumResponse };
-  MainDashboard: { premiumData: PremiumResponse; activePlan: 'basic' | 'standard' | 'premium' };
+  MainTabs: { premiumData: PremiumResponse; activePlan: 'basic' | 'standard' | 'premium' };
+};
+
+export type BottomTabParamList = {
+  Home: { premiumData: PremiumResponse; activePlan: 'basic' | 'standard' | 'premium' };
+  Coverage: undefined;
+  Wallet: undefined;
+  Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 const customTheme = {
   ...DarkTheme,
@@ -35,6 +52,46 @@ const customTheme = {
     primary: colors.orange,
   },
 };
+
+function MainTabs({ route }: any) {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: 'rgba(10, 10, 15, 0.95)',
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          elevation: 0,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor: colors.orange,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: any = 'home';
+          if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
+          else if (route.name === 'Coverage') iconName = focused ? 'shield-checkmark' : 'shield-checkmark-outline';
+          else if (route.name === 'Wallet') iconName = focused ? 'wallet' : 'wallet-outline';
+          else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
+          
+          return <Ionicons name={iconName} size={24} color={color} />;
+        },
+      })}
+    >
+      {/* Home tab takes the params passed from PlanSelection and forwards them down */}
+      <Tab.Screen 
+        name="Home" 
+        component={DashboardScreen} 
+        initialParams={route.params}
+      />
+      <Tab.Screen name="Coverage" component={CoverageScreen} />
+      <Tab.Screen name="Wallet" component={WalletScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+}
 
 export default function App() {
   return (
@@ -62,6 +119,16 @@ export default function App() {
             options={{ headerShown: false, animation: 'fade' }}
           />
           <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false, animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="Signup"
+            component={SignupScreen}
+            options={{ headerShown: false, animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
             name="Location"
             component={LocationPermissionScreen}
             options={{ headerShown: false, animation: 'slide_from_right' }}
@@ -75,13 +142,11 @@ export default function App() {
             }}
           />
           <Stack.Screen
-            name="MainDashboard"
-            component={DashboardScreen}
+            name="MainTabs"
+            component={MainTabs}
             options={{
-              title: 'GigGuard',
-              headerLeft: () => null,
+              headerShown: false,
               animation: 'fade',
-              headerStyle: { backgroundColor: colors.bg },
             }}
           />
         </Stack.Navigator>

@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type SetupStackParamList = {
   Welcome: undefined;
-  Location: undefined;
+  Login: undefined;
 };
 
 type Props = {
@@ -63,7 +63,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
         <TouchableOpacity 
           style={styles.primaryButton}
-          onPress={() => navigation.navigate('Location')}
+          onPress={() => navigation.navigate('Login')}
           activeOpacity={0.8}
         >
           <Text style={styles.primaryButtonText}>Get Started</Text>

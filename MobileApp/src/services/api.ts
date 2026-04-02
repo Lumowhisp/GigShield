@@ -3,7 +3,7 @@
  * Connects to GigShield_v2 FastAPI backend
  */
 
-const BASE_URL = __DEV__ 
+const BASE_URL = __DEV__
   ? 'http://10.251.230.37:8000'
   : 'http://10.251.230.37:8000';
 
@@ -53,6 +53,7 @@ export interface ForecastRisk {
   max_simultaneous_triggers: number;
   coverage_extended: boolean;
   forecast_summary: string;
+  daily_risks: number[];
 }
 
 export interface PremiumResponse {
@@ -65,7 +66,7 @@ export interface PremiumResponse {
   zone_profile: ZoneProfile;
 
   // Active triggers today
-  active_triggers_today: TriggerInfo[];
+  all_triggers_today: TriggerInfo[];
 
   // Forecast risk summary
   forecast_risk: ForecastRisk;
@@ -93,6 +94,44 @@ export interface HealthResponse {
   test_mae: number;
   triggers: string[];
   note: string;
+  db_status?: string;
+}
+
+import * as SecureStore from 'expo-secure-store';
+
+export interface AuthResponse {
+  status: string;
+  user_id: string;
+  message: string;
+  access_token: string;
+  token_type: string;
+}
+
+// ─── SECURE STORAGE UTILITIES ───────────────────────────────────────────────
+
+export async function saveToken(token: string) {
+  try {
+    await SecureStore.setItemAsync('userToken', token);
+  } catch (err) {
+    console.error('Failed to save auth token', err);
+  }
+}
+
+export async function getToken() {
+  try {
+    return await SecureStore.getItemAsync('userToken');
+  } catch (err) {
+    console.error('Failed to get auth token', err);
+    return null;
+  }
+}
+
+export async function clearToken() {
+  try {
+    await SecureStore.deleteItemAsync('userToken');
+  } catch (err) {
+    console.error('Failed to clear auth token', err);
+  }
 }
 
 // ─── API FUNCTIONS ──────────────────────────────────────────────────────────
@@ -132,6 +171,44 @@ export async function checkHealth(): Promise<HealthResponse> {
     throw new Error(`Health check failed: ${response.status}`);
   }
   return response.json();
+}
+
+export async function loginUser(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Login failed. Please check your credentials.');
+  }
+
+  const data: AuthResponse = await response.json();
+  if (data.access_token) {
+    await saveToken(data.access_token);
+  }
+  return data;
+}
+
+export async function registerUser(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Registration failed.');
+  }
+
+  const data: AuthResponse = await response.json();
+  if (data.access_token) {
+    await saveToken(data.access_token);
+  }
+  return data;
 }
 
 export { BASE_URL };
