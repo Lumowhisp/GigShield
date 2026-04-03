@@ -495,6 +495,65 @@ def trigger_poor_visibility(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# NEW: DELHI NCR AQI TRIGGER (Hackathon Deliverable)
+# ─────────────────────────────────────────────────────────────────────────────
+def trigger_severe_aqi(
+    latitude: float,
+    longitude: float,
+    shortwave_radiation_mj: float, 
+    rolling_3d_temp: float,
+    wind_speed_max: float
+) -> TriggerResult:
+    """
+    Simulates a CPCB AQI > 300 trigger specifically for Delhi, Gurugram, Noida.
+    Uses radiation blockage, low wind (stagnation), and winter temperatures 
+    as a robust proxy for extreme smog/smoke.
+    """
+    # Check if inside NCR box roughly (Lat 28.2 to 28.9, Lon 76.8 to 77.6)
+    in_ncr = 28.2 <= latitude <= 28.9 and 76.8 <= longitude <= 77.6
+    
+    # Needs to be NCR
+    if not in_ncr:
+        return TriggerResult(
+            trigger_id="severe_aqi",
+            trigger_name="Severe Air Quality",
+            icon="😷", active=False, severity=0.0, loss_multiplier=1.0,
+            description="AQI safe or outside Delhi NCR."
+        )
+
+    # Proxy conditions for AQI > 300: Very low wind, blocked sun, usually cooler temps
+    stagnant_air = wind_speed_max < 12.0
+    blocked_sun = shortwave_radiation_mj < 10.0
+    
+    # Calculate an "AQI proxy score" (0 to 1)
+    smog_score = 0.0
+    if stagnant_air and blocked_sun:
+        wind_factor = max(0, 12 - wind_speed_max) / 12  # 0 to 1
+        sun_factor = max(0, 10 - shortwave_radiation_mj) / 10 # 0 to 1
+        # Winter inversion factor (worse below 25C)
+        inversion = 1.0 if rolling_3d_temp < 25 else 0.5
+        smog_score = (wind_factor * 0.4 + sun_factor * 0.6) * inversion
+
+    threshold = 0.6 # Roughly maps to AQI 300+
+    is_active = smog_score > threshold
+    
+    severity = min(1.0, smog_score * 1.2)
+    loss_multiplier = 1.0 + (severity * 0.25) if is_active else 1.0
+    
+    desc = "Hazardous Air Quality (AQI > 300). Wear N95 masks." if is_active else "Delhi NCR AQI is below severe threshold."
+
+    return TriggerResult(
+        trigger_id="severe_aqi",
+        trigger_name="Severe Air Quality",
+        icon="😷",
+        active=is_active,
+        severity=severity,
+        loss_multiplier=loss_multiplier,
+        description=desc
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # COMPOSITE EVALUATOR — runs all 5 triggers + compound risk
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -511,11 +570,12 @@ def evaluate_all_triggers(
     distance_to_coast_km: float,
     is_coastal: bool,
     latitude: float = 20.0,
+    longitude: float = 77.0,
 ) -> dict:
     """
-    Evaluate all 5 disruption triggers and compute composite disruption metrics.
+    Evaluate all disruption triggers and compute composite disruption metrics.
     
-    v2.1: Passes latitude + distance_to_coast to triggers for zone-adaptive thresholds.
+    v2.1: Passes latitude/longitude for zone-adaptive thresholds and AQI mapping.
     
     Returns:
         triggers: list of TriggerResult
@@ -541,8 +601,11 @@ def evaluate_all_triggers(
         shortwave_radiation_mj, precipitation_mm, temp_max, wind_speed_max,
         latitude=latitude, elevation_m=elevation_m,
     )
+    t6 = trigger_severe_aqi(
+        latitude, longitude, shortwave_radiation_mj, rolling_3d_temp, wind_speed_max
+    )
 
-    triggers = [t1, t2, t3, t4, t5]
+    triggers = [t1, t2, t3, t4, t5, t6]
     active_triggers = [t for t in triggers if t.active]
     n_active = len(active_triggers)
 

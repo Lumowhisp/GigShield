@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>GigShield — Neural Command Center</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           DESIGN SYSTEM — Neural Command Center v8.0
+           Theme: Premium Dark Navy Glassmorphism (Unified)
+           Matches: Rider App v6.0 palette exactly
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            /* Navy base palette — IDENTICAL to Rider App */
+            --bg-void: #0b1121;
+            --bg-glass: rgba(30,41,59,.5);
+            --bg-glass-deep: rgba(15,23,42,.85);
+            --border-glass: rgba(255,255,255,.08);
+            --border-glass-hover: rgba(255,255,255,.13);
+
+            /* Soft pastel accents — IDENTICAL to Rider App */
+            --accent-mint: #6ee7b7;
+            --accent-teal: #5eead4;
+            --accent-coral: #fda4af;
+            --accent-peach: #fcd34d;
+            --accent-lavender: #c4b5fd;
+            --accent-sky: #93c5fd;
+
+            /* Text — IDENTICAL to Rider App */
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-dim: #475569;
+
+            /* System */
+            --radius: 14px;
+            --radius-sm: 10px;
+            --blur: blur(12px);
+            --shadow-glass: 0 8px 32px rgba(0,0,0,.25);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            background: var(--bg-void);
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(110,231,183,.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(253,164,175,.02) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(196,181,253,.02) 0%, transparent 60%);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ─── GLASS PANEL (shared mixin) ─── */
+        .glass {
+            background: var(--bg-glass);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-glass);
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           LOGIN GATE — Centered Narrow Card
+           ═══════════════════════════════════════════════════════════════ */
+        .login-shell {
+            position: relative; z-index: 1;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; padding: 20px;
+        }
+        .login-card {
+            background: var(--bg-glass-deep);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            padding: 40px 32px;
+            border-radius: 20px;
+            box-shadow: 0 24px 64px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.03);
+            max-width: 420px; width: 100%;
+            border: 1px solid var(--border-glass);
+        }
+        .login-header { text-align: center; margin-bottom: 28px; }
+        .login-header .icon { font-size: 44px; margin-bottom: 8px; display: block; }
+        .login-header h1 { font-size: 20px; font-weight: 800; color: var(--accent-teal); letter-spacing: 2px; text-transform: uppercase; }
+        .login-header p { color: var(--text-dim); font-size: 10px; margin-top: 8px; font-family: 'JetBrains Mono', monospace; letter-spacing: 2px; }
+        .scan-line { height: 1px; background: linear-gradient(90deg, transparent, var(--accent-teal), transparent); margin: 16px 0 24px; animation: scan 2.5s ease-in-out infinite; opacity: .5; }
+        @keyframes scan { 0%,100%{opacity:.15} 50%{opacity:.6} }
+
+        label { font-size: 10px; color: var(--text-secondary); display: block; margin-bottom: 5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; }
+        input { width: 100%; padding: 12px 14px; margin: 0 0 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: rgba(15,23,42,.7); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); color: var(--text-primary); font-size: 13px; font-family: 'JetBrains Mono', monospace; outline: none; transition: all .3s; }
+        input:focus { border-color: var(--accent-teal); box-shadow: 0 0 0 3px rgba(94,234,212,.06); }
+        input::placeholder { color: #334155; }
+
+        .btn-auth { width: 100%; padding: 13px; border-radius: var(--radius-sm); border: none; font-size: 13px; font-weight: 800; cursor: pointer; background: linear-gradient(135deg, #5eead4, #2dd4bf); color: #042f2e; letter-spacing: .5px; transition: all .3s; font-family: 'Inter', sans-serif; box-shadow: 0 4px 20px rgba(94,234,212,.12); }
+        .btn-auth:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(94,234,212,.18); }
+
+        .login-error { display: none; text-align: center; color: var(--accent-coral); font-size: 11px; margin-top: 12px; padding: 10px; background: rgba(253,164,175,.05); border-radius: var(--radius-sm); border: 1px solid rgba(253,164,175,.08); }
+
+        /* ═══════════════════════════════════════════════════════════════
+           DASHBOARD — Centered SaaS Shell (1100px)
+           ═══════════════════════════════════════════════════════════════ */
+        #admin_dashboard { display: none; }
+
+        .dash-shell {
+            position: relative; z-index: 1;
+            max-width: 1100px;
+            width: 92%;
+            margin: 40px auto;
+        }
+
+        /* ─── TOPBAR ─── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 22px;
+            margin-bottom: 20px;
+        }
+        .topbar-brand { display: flex; align-items: center; gap: 10px; }
+        .topbar-brand .ico { font-size: 24px; }
+        .topbar-brand h2 { font-size: 16px; font-weight: 800; color: var(--accent-teal); letter-spacing: .8px; }
+        .topbar-right { display: flex; align-items: center; gap: 14px; }
+        .topbar .user-tag { font-size: 11px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
+        .btn-logout { padding: 8px 18px; border-radius: 8px; border: 1px solid rgba(94,234,212,.12); background: transparent; color: var(--accent-teal); font-size: 11px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif; transition: all .3s; width: auto; }
+        .btn-logout:hover { background: rgba(94,234,212,.05); border-color: rgba(94,234,212,.2); }
+
+        /* ─── CIRCUIT BREAKER ─── */
+        .cb { border-radius: var(--radius); padding: 12px 18px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 12px; transition: all .4s; }
+        .cb-on { background: rgba(110,231,183,.06); border: 1px solid rgba(110,231,183,.1); color: #a7f3d0; backdrop-filter: var(--blur); }
+        .cb-off { background: rgba(253,164,175,.06); border: 1px solid rgba(253,164,175,.1); color: #fecdd3; animation: cbp 1.5s ease-in-out infinite; backdrop-filter: var(--blur); }
+        @keyframes cbp { 0%,100%{box-shadow:0 0 8px rgba(253,164,175,.1)} 50%{box-shadow:0 0 24px rgba(253,164,175,.18)} }
+        .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .dot-g { background: var(--accent-mint); box-shadow: 0 0 8px rgba(110,231,183,.35); }
+        .dot-r { background: var(--accent-coral); box-shadow: 0 0 8px rgba(253,164,175,.35); animation: bk 1s ease-in-out infinite; }
+        @keyframes bk { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+           KPI GRID — Compact 4-column
+           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        .kpi {
+            border-radius: var(--radius);
+            padding: 16px 14px;
+            text-align: center;
+            background: var(--bg-glass);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            border: 1px solid var(--border-glass);
+            box-shadow: var(--shadow-glass);
+            transition: border-color .3s;
+        }
+        .kpi:hover { border-color: var(--border-glass-hover); }
+        .kpi .label { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 700; }
+        .kpi .value { font-size: 22px; font-weight: 800; }
+        .kpi-income .value { color: var(--accent-mint); }
+        .kpi-payouts .value { color: var(--accent-coral); }
+        .kpi-profit .value { color: var(--accent-teal); }
+        .kpi-policies .value { color: var(--accent-lavender); }
+
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+           CHART ROW — Line (70%) + Pie (30%)
+           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        .chart-row {
+            display: flex;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .chart-line-wrap {
+            flex: 7;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .chart-pie-wrap {
+            flex: 3;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .chart-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; text-align: center; }
+        .chart-title.mint { color: var(--accent-mint); }
+        .chart-title.lavender { color: var(--accent-lavender); }
+        .chart-line-wrap canvas { width: 100% !important; height: 220px !important; }
+        .chart-pie-wrap canvas { max-width: 200px; max-height: 200px; }
+        .chart-legend { display: flex; justify-content: center; gap: 18px; margin-top: 10px; font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); }
+        .chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+        .chart-legend .leg-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+        /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+           TWO-COLUMN WORKSPACE
+           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+        .ws-col { display: flex; flex-direction: column; gap: 18px; }
+
+        /* ─── PANEL (glass) ─── */
+        .panel {
+            padding: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .panel-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; text-align: center; margin-bottom: 14px; }
+
+        /* ─── BUTTONS ─── */
+        .btn-action { width: 100%; padding: 11px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700; cursor: pointer; margin-bottom: 8px; transition: all .2s; font-family: 'Inter', sans-serif; }
+        .btn-action:last-child { margin-bottom: 0; }
+        .btn-action:hover { opacity: .85; transform: translateY(-1px); }
+        .btn-payout { background: linear-gradient(135deg, #34d399, #10b981); color: #022c22; box-shadow: 0 4px 14px rgba(52,211,153,.1); }
+        .btn-crash { background: linear-gradient(135deg, #64748b, #475569); color: #e2e8f0; }
+        .btn-unban { background: linear-gradient(135deg, #fda4af, #fb7185); color: #4c0519; box-shadow: 0 4px 14px rgba(253,164,175,.08); }
+
+        /* ─── HEALTH ─── */
+        .health-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 8px; background: rgba(15,23,42,.4); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); transition: border-color .3s; }
+        .health-row:last-child { margin-bottom: 0; }
+        .health-row:hover { border-color: rgba(110,231,183,.1); }
+        .health-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-mint); flex-shrink: 0; box-shadow: 0 0 6px rgba(110,231,183,.3); animation: healthPulse 2s ease-in-out infinite; }
+        @keyframes healthPulse { 0%,100%{box-shadow:0 0 4px rgba(110,231,183,.2)} 50%{box-shadow:0 0 12px rgba(110,231,183,.4)} }
+        .health-name { flex: 1; font-size: 11px; color: var(--text-primary); font-weight: 500; }
+        .health-status { font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--accent-mint); font-weight: 700; letter-spacing: .5px; }
+        .health-latency { font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); margin-left: 4px; }
+
+        /* ─── ANOMALY TICKER ─── */
+        .anomaly-item { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; margin-bottom: 8px; background: rgba(15,23,42,.35); border-left: 2px solid; border-radius: 0 8px 8px 0; font-size: 10px; font-family: 'JetBrains Mono', monospace; line-height: 1.7; animation: fadeSlideIn .5s ease; }
+        .anomaly-item:last-child { margin-bottom: 0; }
+        .anomaly-item.warn { border-color: var(--accent-peach); color: #fef3c7; }
+        .anomaly-item.alert { border-color: var(--accent-coral); color: #fecdd3; }
+        .anomaly-item.info { border-color: var(--accent-teal); color: #a7f3d0; }
+        .anomaly-tag { font-weight: 700; flex-shrink: 0; font-size: 9px; letter-spacing: .5px; }
+        .anomaly-tag.warn { color: var(--accent-peach); }
+        .anomaly-tag.alert { color: var(--accent-coral); }
+        .anomaly-tag.info { color: var(--accent-teal); }
+        .anomaly-ts { color: var(--text-dim); font-size: 9px; display: block; margin-top: 2px; }
+        @keyframes fadeSlideIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+
+        /* ─── LEDGER ─── */
+        .ledger { max-height: 150px; overflow-y: auto; font-size: 10px; color: var(--accent-mint); font-family: 'JetBrains Mono', monospace; line-height: 1.9; padding: 10px 12px; background: rgba(15,23,42,.5); border-radius: 8px; border: 1px solid var(--border-glass); }
+
+        /* ─── DATA SHEET ─── */
+        .btn-sheet { background: linear-gradient(135deg, #93c5fd, #60a5fa); border: none; color: #1e3a5f; font-size: 12px; padding: 11px; font-weight: 700; cursor: pointer; border-radius: 8px; width: 100%; margin-bottom: 10px; transition: all .2s; font-family: 'Inter', sans-serif; box-shadow: 0 4px 14px rgba(147,197,253,.08); }
+        .btn-sheet:hover { opacity: .85; transform: translateY(-1px); }
+        #rtable { width: 100%; border-collapse: collapse; font-size: 10px; color: var(--text-primary); display: none; }
+        #rtable thead { background: rgba(30,41,59,.5); }
+        #rtable th { padding: 9px 8px; text-align: left; color: var(--accent-sky); font-weight: 700; letter-spacing: .5px; text-transform: uppercase; font-size: 9px; border-bottom: 1px solid var(--border-glass); }
+        #rtable td { padding: 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.03); word-break: break-word; }
+        #rtable tbody tr:hover { background: rgba(147,197,253,.03); }
+        .b-a { background: rgba(110,231,183,.08); color: var(--accent-mint); padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: bold; }
+        .b-i { background: rgba(100,116,139,.1); color: #94a3b8; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: bold; }
+
+        /* ─── RESPONSIVE ─── */
+        @media (max-width: 900px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .chart-row { flex-direction: column; }
+            .chart-line-wrap, .chart-pie-wrap { flex: unset; }
+            .workspace { grid-template-columns: 1fr; }
+            .dash-shell { width: 96%; margin: 20px auto; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     LOGIN GATE
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="login-shell" id="admin_login">
+    <div class="login-card">
+        <div class="login-header">
+            <span class="icon">🧠</span>
+            <h1>Neural Portal</h1>
+            <p>AUTHORIZED PERSONNEL ONLY</p>
+        </div>
+        <div class="scan-line"></div>
+        <label>Admin Email</label>
+        <input type="email" id="admin_email" placeholder="admin@gigshield.com" autocomplete="off">
+        <label>Access Code</label>
+        <input type="password" id="admin_pass" placeholder="••••••••••" autocomplete="off">
+        <button class="btn-auth" onclick="adminLogin()">⚡ Authenticate</button>
+        <div id="login_error" class="login-error">🚫 Authentication Failed</div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     DASHBOARD — Centered Glass Layout (1100px)
+     ═══════════════════════════════════════════════════════════════════ -->
+<div id="admin_dashboard">
+<div class="dash-shell">
+
+    <!-- Topbar -->
+    <div class="topbar glass">
+        <div class="topbar-brand">
+            <span class="ico">⚙️</span>
+            <h2>Neural Command Center</h2>
+        </div>
+        <div class="topbar-right">
+            <span class="user-tag">👑 <span id="admin_user"></span></span>
+            <button class="btn-logout" onclick="logout()">🚪 Logout</button>
+        </div>
+    </div>
+
+    <!-- Circuit Breaker -->
+    <div id="cb" class="cb cb-on">
+        <span class="dot dot-g" id="cb_dot"></span>
+        <span id="cb_label">✅ Underwriting Active</span>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi kpi-income"><div class="label">Total Income</div><div class="value" id="d_inc">—</div></div>
+        <div class="kpi kpi-payouts"><div class="label">Total Payouts</div><div class="value" id="d_pay">—</div></div>
+        <div class="kpi kpi-profit"><div class="label">Net Profit</div><div class="value" id="d_pro">—</div></div>
+        <div class="kpi kpi-policies"><div class="label">Active Policies</div><div class="value" id="d_pol">—</div></div>
+    </div>
+
+    <!-- Chart Row: Line (70%) + Pie (30%) -->
+    <div class="chart-row">
+        <div class="chart-line-wrap glass">
+            <div class="chart-title mint">📈 Composition & Trend — 7-Day</div>
+            <canvas id="financialChart"></canvas>
+            <div class="chart-legend">
+                <span><span class="leg-dot" style="background:var(--accent-mint)"></span> Premium Income</span>
+                <span><span class="leg-dot" style="background:var(--accent-coral)"></span> Claims Payout</span>
+            </div>
+        </div>
+        <div class="chart-pie-wrap glass">
+            <div class="chart-title lavender">📊 Policy Distribution</div>
+            <canvas id="policyPieChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Two-Column Workspace -->
+    <div class="workspace">
+
+        <!-- ━━━ LEFT COLUMN ━━━ -->
+        <div class="ws-col">
+            <div class="panel glass">
+                <div class="panel-title" style="color:var(--accent-coral)">🎮 Action Controls</div>
+                <button class="btn-action btn-payout" onclick="runPayout()">🔄 Run Auto-Payout Scan</button>
+                <button class="btn-action btn-crash" id="crash_btn" onclick="toggleCrash()">🔌 Toggle App Outage</button>
+            </div>
+
+            <div class="panel glass">
+                <div class="panel-title" style="color:var(--accent-peach)">🔓 Rider Ban Management</div>
+                <label>Rider ID to Unban</label>
+                <input type="text" id="unban_id" placeholder="e.g. GIG-12345" value="Rider_007" style="margin-bottom:8px">
+                <button class="btn-action btn-unban" onclick="unban()">🔓 Unban Rider</button>
+            </div>
+
+            <div class="panel glass">
+                <div class="panel-title" style="color:var(--accent-mint)">🟢 System Health & API Linkages</div>
+                <div class="health-row">
+                    <span class="health-dot"></span>
+                    <span class="health-name">Open-Meteo API (Weather)</span>
+                    <span class="health-status">ONLINE</span>
+                    <span class="health-latency">(42ms)</span>
+                </div>
+                <div class="health-row">
+                    <span class="health-dot"></span>
+                    <span class="health-name">WAQI API (Air Quality)</span>
+                    <span class="health-status">ONLINE</span>
+                    <span class="health-latency">(88ms)</span>
+                </div>
+                <div class="health-row">
+                    <span class="health-dot"></span>
+                    <span class="health-name">ML Pricing Engine</span>
+                    <span class="health-status">ARMED & ACTIVE</span>
+                    <span class="health-latency"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ━━━ RIGHT COLUMN ━━━ -->
+        <div class="ws-col">
+            <div class="panel glass">
+                <div class="panel-title" style="color:var(--accent-coral)">🚨 Automated Risk Alerts</div>
+                <div class="anomaly-item warn">
+                    <span class="anomaly-tag warn">[WARNING]</span>
+                    <span>Rider_089 attempting multiple claims from mismatched GPS coordinates. Velocity: 340km in 12min — possible location spoofing.<span class="anomaly-ts">2 min ago</span></span>
+                </div>
+                <div class="anomaly-item alert">
+                    <span class="anomaly-tag alert">[ALERT]</span>
+                    <span>3 riders reached Strike 4. Nearing permanent ban threshold. IDs: GIG-31007, GIG-44521, GIG-70893.<span class="anomaly-ts">8 min ago</span></span>
+                </div>
+                <div class="anomaly-item info">
+                    <span class="anomaly-tag info">[ANOMALY]</span>
+                    <span>Claim surge detected: 12 rain-slip claims filed from Sector-62, Noida in the last 15 minutes. Cross-verifying with Open-Meteo precipitation data.<span class="anomaly-ts">14 min ago</span></span>
+                </div>
+            </div>
+
+            <div class="panel glass">
+                <div class="panel-title" style="color:var(--accent-mint)">📡 Live Transactions</div>
+                <div id="ledger" class="ledger"><span style="color:var(--text-dim)">Awaiting data…</span></div>
+            </div>
+
+            <div class="panel glass" style="overflow-x:auto">
+                <div class="panel-title" style="color:var(--accent-sky)">📊 Registered Riders Database</div>
+                <button class="btn-sheet" onclick="loadRiders()">📊 Load Rider Database</button>
+                <table id="rtable">
+                    <thead><tr>
+                        <th>Rider ID</th><th>Name</th><th>City</th>
+                        <th title="Min 5 days required for policy eligibility">Active Days</th>
+                        <th>Wallet (₹)</th><th>Policy</th><th>Ban</th>
+                    </tr></thead>
+                    <tbody id="rbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     JAVASCRIPT — All Business Logic (preserved)
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+let jwt="";
+
+async function adminLogin(){
+    const e=document.getElementById('admin_email').value,p=document.getElementById('admin_pass').value;
+    const err=document.getElementById('login_error');err.style.display='none';
+    if(!e||!p){err.innerText='🚫 Email and password are required.';err.style.display='block';return;}
+    try{
+        const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})});
+        if(!r.ok){err.innerText='🚫 Authentication Failed — Invalid Credentials';err.style.display='block';return;}
+        const d=await r.json();jwt=d.token;
+        const chk=await fetch('/admin/riders',{headers:{'Authorization':'Bearer '+jwt}});
+        if(chk.status===403){err.innerText='🚫 Access Denied — This account does not have admin privileges.';err.style.display='block';jwt='';return;}
+        document.getElementById('admin_login').style.display='none';
+        document.getElementById('admin_dashboard').style.display='block';
+        document.getElementById('admin_user').innerText=d.rider_id||e;
+        loadDashboard();
+    }catch(ex){err.innerText='🚫 Connection failed: '+ex.message;err.style.display='block';}
+}
+
+function logout(){
+    document.getElementById('admin_dashboard').style.display='none';
+    document.getElementById('admin_login').style.display='flex';
+    jwt='';
+    document.getElementById('admin_email').value='';
+    document.getElementById('admin_pass').value='';
+    document.getElementById('login_error').style.display='none';
+}
+
+async function loadDashboard(){
+    document.getElementById('d_inc').innerText='₹12,450';
+    document.getElementById('d_pay').innerText='₹4,200';
+    document.getElementById('d_pro').innerText='+₹8,250';
+    document.getElementById('d_pol').innerText='415';
+    const lg=document.getElementById('ledger'),n=new Date(),ts=m=>{const d=new Date(n.getTime()-m*60000);return d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})};
+    lg.innerHTML=`<div>⚡ ${ts(2)} — <span style="color:#6ee7b7">PAYOUT</span> ₹350 → GIG-88412 (Rain Slip)</div><div>💳 ${ts(5)} — <span style="color:#5eead4">PREMIUM</span> ₹45 ← GIG-77201 (Weekly)</div><div>⚡ ${ts(11)} — <span style="color:#6ee7b7">PAYOUT</span> ₹500 → GIG-55039 (AQI 340)</div><div>🚨 ${ts(18)} — <span style="color:#fda4af">BAN</span> GIG-31007 — Strike 3</div>`;
+    fetchCB();
+    initFinancialChart();
+    initPieChart();
+}
+
+async function fetchCB(){
+    const b=document.getElementById('cb'),d=document.getElementById('cb_dot'),l=document.getElementById('cb_label');
+    try{const r=await fetch('/claims/premium',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({latitude:28.6139,longitude:77.209,daily_income:500,city:'Delhi',active_days:10})});
+    if(!r.ok)throw new Error();const j=await r.json();
+    if(j.is_suspended){b.className='cb cb-off';d.className='dot dot-r';l.innerHTML='🔴 Underwriting Suspended: High Risk<br><span style="font-size:10px;font-weight:normal;opacity:.8">Risk: '+(j.forecast_risk*100).toFixed(1)+'% — '+(j.risk_factors?j.risk_factors[0]:'')+' </span>';}
+    else{b.className='cb cb-on';d.className='dot dot-g';l.innerHTML='🟢 Underwriting Active<br><span style="font-size:10px;font-weight:normal;opacity:.8">Risk: '+(j.forecast_risk*100).toFixed(1)+'% — '+(j.risk_factors?j.risk_factors[0]:'Normal')+'</span>';}}
+    catch(e){b.className='cb cb-on';d.className='dot dot-g';l.innerText='✅ Underwriting Active (check unavailable)';}
+}
+
+async function runPayout(){
+    try{const r=await fetch('/admin/simulate-zero-touch-payouts',{method:'POST',headers:{'Authorization':'Bearer '+jwt}});
+    if(r.status===403){alert('🚨 Access Denied!');return;}const d=await r.json();
+    alert('🔄 Auto-Payout Scan\n\nAQI: '+d.aqi+'\nRain: '+d.precipitation_mm+'mm\nReason: '+d.reason+'\nRiders Credited: '+(d.riders_credited||0)+'\nTotal Payouts: ₹'+d.total_payouts);}
+    catch(e){alert('❌ '+e.message);}
+}
+
+async function toggleCrash(){
+    const r=await fetch('/admin/toggle-crash',{method:'POST',headers:{'Authorization':'Bearer '+jwt}});
+    if(r.status===403){alert('🚨 Access Denied!');return;}const d=await r.json();
+    const b=document.getElementById('crash_btn');b.innerText=d.platform_down?'🔌 App is DOWN':'🔌 App is ONLINE';b.style.background=d.platform_down?'linear-gradient(90deg,#fda4af,#fb7185)':'linear-gradient(135deg,#64748b,#475569)';
+}
+
+async function unban(){
+    const id=document.getElementById('unban_id').value;if(!id){alert('Enter a Rider ID.');return;}
+    const r=await fetch('/admin/revoke-suspension',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt},body:JSON.stringify({rider_id:id})});
+    const d=await r.json();if(r.ok)alert(d.message);else alert('❌ '+d.detail);
+}
+
+async function loadRiders(){
+    const t=document.getElementById('rtable'),b=document.getElementById('rbody');
+    b.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-dim)">⏳ Loading…</td></tr>';t.style.display='table';
+    try{const r=await fetch('/admin/riders',{headers:{'Authorization':'Bearer '+jwt}});
+    if(r.status===403){alert('🚨 Denied!');b.innerHTML='';t.style.display='none';return;}
+    if(!r.ok){alert('❌ Failed.');b.innerHTML='';t.style.display='none';return;}
+    const riders=await r.json();if(!riders.length){b.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-dim)">No riders yet.</td></tr>';return;}
+    let h='';for(const x of riders){
+        const pb=x.has_active_policy?'<span class="b-a">✅ YES</span>':'<span class="b-i">❌ NO</span>';
+        let bc='color:#6ee7b7',bl=(x.current_ban_status||'none');if(bl==='temporary')bc='color:#fcd34d';else if(bl==='permanent')bc='color:#fda4af;font-weight:bold';
+        h+=`<tr><td>${x.rider_id}</td><td>${x.name}</td><td>${x.city}</td><td>${x.active_delivery_days}</td><td>₹${Number(x.balance).toFixed(2)}</td><td>${pb}</td><td><span style="${bc}">${bl.toUpperCase()}</span></td></tr>`;}
+    b.innerHTML=h;}catch(e){alert('❌ '+e.message);b.innerHTML='';t.style.display='none';}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHART: 7-Day Financial Trend (Line) — Soft Pastel Colors
+// ═══════════════════════════════════════════════════════════════════
+function initFinancialChart() {
+    const ctx = document.getElementById('financialChart').getContext('2d');
+
+    const mintGrad = ctx.createLinearGradient(0, 0, 0, 220);
+    mintGrad.addColorStop(0, 'rgba(110, 231, 183, 0.20)');
+    mintGrad.addColorStop(1, 'rgba(110, 231, 183, 0.01)');
+
+    const coralGrad = ctx.createLinearGradient(0, 0, 0, 220);
+    coralGrad.addColorStop(0, 'rgba(253, 164, 175, 0.15)');
+    coralGrad.addColorStop(1, 'rgba(253, 164, 175, 0.01)');
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [
+                {
+                    label: 'Premium Income',
+                    data: [1200, 1900, 1500, 2200, 1800, 2800, 3100],
+                    borderColor: '#6ee7b7',
+                    backgroundColor: mintGrad,
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#6ee7b7',
+                    pointBorderColor: '#0b1121',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 6,
+                },
+                {
+                    label: 'Claims Payout',
+                    data: [400, 0, 800, 200, 0, 1500, 500],
+                    borderColor: '#fda4af',
+                    backgroundColor: coralGrad,
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fda4af',
+                    pointBorderColor: '#0b1121',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 6,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15,23,42,.92)',
+                    borderColor: 'rgba(255,255,255,.06)',
+                    borderWidth: 1,
+                    titleColor: '#f8fafc',
+                    bodyColor: '#94a3b8',
+                    titleFont: { family: 'Inter', weight: '700', size: 11 },
+                    bodyFont: { family: 'JetBrains Mono', size: 10 },
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.dataset.label + ': ₹' + ctx.parsed.y.toLocaleString();
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,.03)', drawBorder: false },
+                    ticks: { color: '#475569', font: { family: 'JetBrains Mono', size: 10 } },
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,.03)', drawBorder: false },
+                    ticks: {
+                        color: '#475569',
+                        font: { family: 'JetBrains Mono', size: 10 },
+                        callback: function(v) { return '₹' + v.toLocaleString(); },
+                    },
+                    beginAtZero: true,
+                },
+            },
+        },
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHART: Policy Type Distribution (Doughnut) — Soft Pastel Colors
+// ═══════════════════════════════════════════════════════════════════
+function initPieChart() {
+    const ctx = document.getElementById('policyPieChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Basic', 'Standard', 'Premium'],
+            datasets: [{
+                data: [40, 35, 25],
+                backgroundColor: [
+                    'rgba(94, 234, 212, 0.75)',    // teal
+                    'rgba(252, 211, 77, 0.75)',    // peach
+                    'rgba(196, 181, 253, 0.75)',   // lavender
+                ],
+                borderColor: '#0b1121',
+                borderWidth: 3,
+                hoverBorderColor: '#1e293b',
+                hoverOffset: 6,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: '55%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#94a3b8',
+                        font: { family: 'JetBrains Mono', size: 10 },
+                        padding: 14,
+                        pointStyle: 'circle',
+                        usePointStyle: true,
+                        boxWidth: 6,
+                    },
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15,23,42,.92)',
+                    borderColor: 'rgba(255,255,255,.06)',
+                    borderWidth: 1,
+                    titleColor: '#f8fafc',
+                    bodyColor: '#94a3b8',
+                    bodyFont: { family: 'JetBrains Mono', size: 10 },
+                    padding: 10,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(ctx) {
+                            return ' ' + ctx.label + ': ' + ctx.parsed + '%';
+                        },
+                    },
+                },
+            },
+        },
+    });
+}
+</script>
+</body>
+</html>

@@ -55,24 +55,37 @@ export default function PlanCard({ planKey, plan, isSelected, isRecommended, onS
     outputRange: [colors.bgCard, config.accentDim],
   });
 
+  const isEligible = plan.is_eligible !== false; // handle undefined as true for older schema
+
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onSelect}>
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            transform: [{ scale: scaleAnim }],
-            borderColor,
-            backgroundColor: bgColor,
-          },
-        ]}
-      >
-        {/* Recommended badge */}
-        {isRecommended && (
-          <View style={[styles.badge, { backgroundColor: colors.orangeDim }]}>
-            <Text style={[styles.badgeText, { color: colors.orange }]}>★ RECOMMENDED</Text>
-          </View>
-        )}
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={[
+        styles.card,
+        {
+          borderColor: isSelected ? config.color : colors.border,
+          backgroundColor: isSelected ? config.accentDim : colors.bgCard,
+        },
+        !isEligible && { opacity: 0.5 }
+      ]}
+      onPress={() => isEligible && onSelect()}
+      disabled={!isEligible}
+    >
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        
+        {/* Badges row */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          {isRecommended && isEligible && (
+            <View style={[styles.badge, { backgroundColor: colors.orangeDim }]}>
+              <Text style={[styles.badgeText, { color: colors.orange }]}>★ RECOMMENDED</Text>
+            </View>
+          )}
+          {!isEligible && (
+            <View style={[styles.badge, { backgroundColor: colors.dangerDim }]}>
+              <Text style={[styles.badgeText, { color: colors.danger }]}>🔒 REQUIRES 5+ ACTIVE DAYS</Text>
+            </View>
+          )}
+        </View>
 
         {/* Plan header row */}
         <View style={styles.headerRow}>
@@ -110,7 +123,6 @@ export default function PlanCard({ planKey, plan, isSelected, isRecommended, onS
             </Text>
             <Text style={styles.pricePeriod}>/week</Text>
           </View>
-          <Text style={styles.monthlyText}>₹{Math.round(plan.monthly_premium_inr)}/mo</Text>
         </View>
 
         {/* Adjustments - only when selected */}

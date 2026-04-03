@@ -1,13 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, ActivityIndicator, Platform, Dimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import LottieView from 'lottie-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
 import RiskGauge from '../components/RiskGauge';
+import AQIPanel from '../components/AQIPanel';
+import CityAlertsFeed from '../components/CityAlertsFeed';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import type { PremiumResponse, TriggerInfo } from '../services/api';
+import type { PremiumResponse, TriggerInfo, UserProfile } from '../services/api';
+import { fetchUserProfile, simulatePayout } from '../services/api';
+import GigBotModal from '../components/GigBotModal';
 import type { RootStackParamList, BottomTabParamList } from '../../App';
 
 type Props = {
@@ -42,29 +47,44 @@ const getWeatherLottie = (code: number) => {
   return WEATHER_LOTTIES.rain;
 };
 
-export default function DashboardScreen({ route }: Props) {
+export default function DashboardScreen({ route, navigation }: Props) {
   const { premiumData, activePlan } = route.params;
   const planDetails = premiumData.plans[activePlan];
   const planColor = PLAN_COLORS[activePlan] || colors.orange;
   const [isSimulating, setIsSimulating] = useState(false);
   const [weather, setWeather] = useState<{ temperature: number; weathercode: number } | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [showNotification, setShowNotification] = useState(false);
+  const [isChatVisible, setIsChatVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const noteAnim = useRef(new Animated.Value(-100)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
 
-    // Fetch real-time weather
-    if (premiumData.latitude && premiumData.longitude) {
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${premiumData.latitude}&longitude=${premiumData.longitude}&current_weather=true`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.current_weather) setWeather(data.current_weather);
-        })
-        .catch(err => console.error("Weather fetch failed", err));
+    // Extract weather directly from premiumData to avoid redundant Open-Meteo fetch and network errors
+    if (premiumData?.today_weather) {
+      setWeather({
+        temperature: premiumData.today_weather.temp_max_c,
+        weathercode: premiumData.today_weather.precipitation_mm > 0 ? 61 : 0 // 61=rain, 0=clear fallback
+      });
     }
+
+    // Fetch profile for policy info
+    fetchUserProfile()
+      .then(setProfile)
+      .catch((err: any) => console.error("Profile fetch failed", err));
+
+    // Start hero glow animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 2000, useNativeDriver: false }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 2000, useNativeDriver: false }),
+      ])
+    ).start();
   }, []);
 
-  const zp = premiumData.zone_profile;
   const fr = premiumData.forecast_risk;
   const triggers = premiumData.all_triggers_today || [];
   const lossRatio = premiumData.forecast_loss_ratio_7d;
@@ -76,12 +96,61 @@ export default function DashboardScreen({ route }: Props) {
     return Array.from({ length: 7 }).map((_, i) => days[(today + i) % 7]);
   };
 
-  const handleSimulate = () => {
+  const getDaysRemaining = () => {
+    if (!profile?.active_policy?.expires_at) return null;
+    const expiry = new Date(profile.active_policy.expires_at);
+    const now = new Date();
+    const diff = expiry.getTime() - now.getTime();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
+  };
+
+  const daysRemaining = getDaysRemaining();
+
+  const getGreetingData = () => {
+    const name = profile?.name?.split(' ')[0] || 'Rider';
+    return { name, msg: 'You\'re protected. Let\'s keep earning.' };
+  };
+
+  const greeting = getGreetingData();
+
+  const handleSimulate = async () => {
     setIsSimulating(true);
-    setTimeout(() => {
+
+    const payoutAmt = Math.round(planDetails.expected_weekly_payout_inr);
+    const demoTriggers = ["Severe AQI (> 300)", "Heavy Rain (> 15mm/hr)", "Extreme Heat (> 43°C)", "Storm conditions"];
+    const randomDemoTrigger = demoTriggers[Math.floor(Math.random() * demoTriggers.length)];
+    const triggerLabel = premiumData.all_triggers_today.find(t => t.active)?.trigger_name || randomDemoTrigger;
+
+    try {
+      await simulatePayout(payoutAmt, triggerLabel);
+
+      // Artificial delay for premium feel
+      setTimeout(() => {
+        setIsSimulating(false);
+        triggerNotification();
+
+        // Refresh profile to get the new payout record
+        fetchUserProfile()
+          .then(setProfile)
+          .catch(err => console.error("Profile refresh failed", err));
+      }, 1500);
+    } catch (error) {
+      console.error("Payout simulation failed:", error);
       setIsSimulating(false);
-      alert('✅ Payout simulated: ₹' + Math.round(planDetails.expected_weekly_payout_inr) + ' via UPI');
-    }, 2000);
+      alert('❌ Simulation failed. Please ensure the server is running.');
+    }
+  };
+
+  const triggerNotification = () => {
+    setShowNotification(true);
+    Animated.sequence([
+      Animated.spring(noteAnim, { toValue: 50, useNativeDriver: true, tension: 50, friction: 8 }),
+      Animated.delay(4000),
+      Animated.timing(noteAnim, { toValue: -120, duration: 500, useNativeDriver: true })
+    ]).start(() => {
+      setShowNotification(false);
+    });
   };
 
   return (
@@ -89,12 +158,12 @@ export default function DashboardScreen({ route }: Props) {
       {/* ── Top App Header ── */}
       <View style={styles.topNav}>
         <View style={styles.leftNavItems}>
-          <TouchableOpacity style={styles.profileIcon} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.profileIcon} activeOpacity={0.7} onPress={() => navigation.navigate('Profile')}>
             <Ionicons name="person-circle-outline" size={40} color={colors.textSecondary} />
           </TouchableOpacity>
           <Text style={styles.brandTitle}>GigGuard</Text>
         </View>
-        
+
         <View style={styles.weatherBadge}>
           {!weather ? (
             <ActivityIndicator color={colors.aqua} size="small" />
@@ -112,11 +181,66 @@ export default function DashboardScreen({ route }: Props) {
         </View>
       </View>
 
+      {/* ── Simulated Push Notification ── */}
+      <Animated.View style={[styles.notificationContainer, { transform: [{ translateY: noteAnim }] }]}>
+        <View style={styles.notificationInner}>
+          <Image source={require('../../assets/logo.png')} style={styles.noteAppIcon} />
+          <View style={{ flex: 1 }}>
+            <View style={styles.noteHeader}>
+              <Text style={styles.noteAppName}>GIGGUARD</Text>
+              <Text style={styles.noteTime}>now</Text>
+            </View>
+            <Text style={styles.noteTitle}>Money Received! 💰</Text>
+            <Text style={styles.noteBody}>
+              ₹{Math.round(planDetails.expected_weekly_payout_inr)} sent via UPI for weather breach.
+            </Text>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* ── Confetti Celebration Animation ── */}
+      {showNotification && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <LottieView
+            source={{ uri: 'https://lottie.host/813eb98a-7d4a-4467-8736-22a36b328a3f/Z4l5yX5hV5.lottie' }}
+            autoPlay
+            loop={false}
+            style={styles.confetti}
+          />
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim }}>
 
+          <View style={styles.greetingHeader}>
+            <Text style={styles.greetingText}>
+              Hey <Text style={{ color: colors.aqua }}>{greeting.name}</Text>,
+            </Text>
+            <Text style={styles.greetingMsg}>{greeting.msg}</Text>
+          </View>
+
           {/* ── Hero: Active plan banner ── */}
-          <View style={[styles.heroBanner, { borderColor: planColor + '40' }]}>
+          <Animated.View style={[
+            styles.heroBanner,
+            {
+              borderWidth: 1,
+              borderColor: glowAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [planColor + '20', planColor + '60']
+              }),
+              shadowColor: planColor,
+              shadowOpacity: glowAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.1, 0.4]
+              }),
+              shadowRadius: glowAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [10, 20]
+              }),
+              elevation: 4
+            }
+          ]}>
             <View style={styles.heroTop}>
               <View>
                 <Text style={styles.heroLabel}>ACTIVE COVERAGE</Text>
@@ -125,7 +249,9 @@ export default function DashboardScreen({ route }: Props) {
                 </Text>
               </View>
               <View style={[styles.activeBadge, { backgroundColor: planColor }]}>
-                <Text style={styles.activeBadgeText}>● LIVE</Text>
+                <Text style={styles.activeBadgeText}>
+                  {daysRemaining !== null ? `EXP. IN ${daysRemaining} DAYS` : '● LIVE'}
+                </Text>
               </View>
             </View>
             <View style={styles.heroStats}>
@@ -144,7 +270,7 @@ export default function DashboardScreen({ route }: Props) {
                 <Text style={styles.heroStatValue}>{planDetails.coverage_hours_per_day}h</Text>
               </View>
             </View>
-          </View>
+          </Animated.View>
 
           {/* ── Risk Gauge & Chart ── */}
           <View style={styles.gaugeSection}>
@@ -157,7 +283,7 @@ export default function DashboardScreen({ route }: Props) {
               />
             </View>
             <Text style={styles.forecastSummary}>{fr.forecast_summary}</Text>
-            
+
             {/* ── Line Chart ── */}
             {fr.daily_risks && fr.daily_risks.length > 0 && (
               <View style={styles.chartWrapper}>
@@ -197,163 +323,134 @@ export default function DashboardScreen({ route }: Props) {
             )}
           </View>
 
-          {/* ── Active Triggers ── */}
-          <Text style={styles.sectionLabel}>DISRUPTION TRIGGERS</Text>
+          {/* ── Active Triggers with Real-Time Metrics ── */}
+          <Text style={styles.sectionLabel}>REAL-TIME DISRUPTION TRIGGERS</Text>
+          
+          {/* Coverage hours badge — DEVTrails B4: trigger must match worker's active hours */}
+          <View style={styles.coverageHoursBadge}>
+            <Ionicons name="time-outline" size={14} color={colors.aqua} />
+            <Text style={styles.coverageHoursText}>
+              Coverage Window: {planDetails.coverage_hours_per_day === 24 ? '24/7 Full Day' : 
+                planDetails.coverage_hours_per_day === 12 ? '6:00 AM – 6:00 PM' : 
+                '8:00 AM – 4:00 PM'} ({planDetails.coverage_hours_per_day}h/day)
+            </Text>
+          </View>
+
           <View style={styles.triggersContainer}>
-            {triggers.map((t: TriggerInfo, i: number) => (
-              <View 
-                key={i} 
-                style={[
-                  styles.triggerCard, 
-                  !t.active && { opacity: 0.65, borderColor: 'rgba(255,255,255,0.02)' }
-                ]}
-              >
-                <View style={styles.triggerHeader}>
-                  {DISRUPTION_LOTTIES[t.trigger_id] ? (
-                    <View style={[styles.triggerGif, !t.active && { opacity: 0.5 }]}>
-                      <LottieView
-                        source={{ uri: DISRUPTION_LOTTIES[t.trigger_id] }}
-                        autoPlay
-                        loop
-                        style={{ width: '100%', height: '100%' }}
-                      />
-                    </View>
-                  ) : (
-                    <Text style={[styles.triggerIcon, !t.active && { opacity: 0.5 }]}>{t.icon}</Text>
-                  )}
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.triggerName}>{t.trigger_name}</Text>
-                    <Text style={[styles.triggerDesc, !t.active && { color: colors.success }]}>
-                      {t.active ? t.description : "All clear — safe conditions"}
-                    </Text>
-                  </View>
-                  <View style={[styles.severityBadge, !t.active && { backgroundColor: 'transparent' }]}>
-                    <Text style={[styles.severityText, !t.active && { color: colors.success }]}>
-                      {t.active ? `${Math.round(t.severity * 100)}%` : "SAFE"}
-                    </Text>
-                  </View>
-                </View>
-                {/* Severity bar */}
-                <View style={styles.severityBarBg}>
-                  <View style={[
-                    styles.severityBarFill,
-                    {
-                      width: t.active ? `${Math.min(t.severity * 100, 100)}%` : '0%',
-                      backgroundColor: t.severity > 0.5 ? colors.danger : t.severity > 0.25 ? colors.warning : colors.aqua,
-                    },
-                  ]} />
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {/* ── Zone Profile ── */}
-          <Text style={styles.sectionLabel}>ZONE PROFILE</Text>
-          <View style={styles.zoneGrid}>
-            <View style={styles.zoneItem}>
-              <Text style={styles.zoneIcon}>⛰️</Text>
-              <Text style={styles.zoneValue}>{Math.round(zp.elevation_m)}m</Text>
-              <Text style={styles.zoneLabel}>Elevation</Text>
-            </View>
-            <View style={styles.zoneItem}>
-              <Text style={styles.zoneIcon}>🌊</Text>
-              <Text style={[styles.zoneValue, zp.is_coastal && { color: colors.aqua }]}>
-                {Math.round(zp.distance_to_coast_km)}km
-              </Text>
-              <Text style={styles.zoneLabel}>To Coast</Text>
-            </View>
-            <View style={styles.zoneItem}>
-              <Text style={styles.zoneIcon}>💧</Text>
-              <Text style={[
-                styles.zoneValue,
-                {
-                  color: zp.waterlogging_risk === 'high_risk' ? colors.danger
-                    : zp.waterlogging_risk === 'risky' ? colors.warning
-                    : colors.success,
-                }
-              ]}>
-                {zp.waterlogging_risk.replace('_', ' ').toUpperCase()}
-              </Text>
-              <Text style={styles.zoneLabel}>Flood Risk</Text>
-            </View>
-            <View style={styles.zoneItem}>
-              <Text style={styles.zoneIcon}>🛡️</Text>
-              <Text style={[styles.zoneValue, { color: colors.success }]}>
-                {(zp.zone_safety_score * 100).toFixed(0)}%
-              </Text>
-              <Text style={styles.zoneLabel}>Safety Score</Text>
-            </View>
-          </View>
-
-          {/* ── Pricing Breakdown ── */}
-          {planDetails.adjustments && planDetails.adjustments.length > 0 && (
-            <>
-              <Text style={styles.sectionLabel}>PRICING ADJUSTMENTS</Text>
-              <View style={styles.adjustCard}>
-                <View style={styles.adjustRow}>
-                  <Text style={styles.adjustLabel}>Base premium</Text>
-                  <Text style={styles.adjustValue}>₹{planDetails.base_premium_inr.toFixed(2)}</Text>
-                </View>
-                {planDetails.adjustments.map((adj, i) => (
-                  <View key={i} style={styles.adjustRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.adjustLabel}>
-                        {adj.type.replace(/_/g, ' ')}
+            {triggers.map((t: TriggerInfo, i: number) => {
+              const severityPct = Math.round(t.severity * 100);
+              const barColor = t.severity > 0.5 ? colors.danger : t.severity > 0.25 ? colors.warning : colors.aqua;
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.triggerCard,
+                    t.active && { borderColor: barColor + '40' },
+                    !t.active && { opacity: 0.6, borderColor: 'rgba(255,255,255,0.02)' }
+                  ]}
+                >
+                  <View style={styles.triggerHeader}>
+                    {DISRUPTION_LOTTIES[t.trigger_id] ? (
+                      <View style={[styles.triggerGif, !t.active && { opacity: 0.5 }]}>
+                        <LottieView
+                          source={{ uri: DISRUPTION_LOTTIES[t.trigger_id] }}
+                          autoPlay
+                          loop
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      </View>
+                    ) : (
+                      <Text style={[styles.triggerIcon, !t.active && { opacity: 0.5 }]}>{t.icon}</Text>
+                    )}
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={styles.triggerName}>{t.trigger_name}</Text>
+                      <Text style={[styles.triggerDesc, !t.active && { color: colors.success }]}>
+                        {t.active ? t.description : "All clear — safe conditions"}
                       </Text>
-                      <Text style={styles.adjustReason}>{adj.reason}</Text>
                     </View>
-                    <Text style={[
-                      styles.adjustValue,
-                      { color: adj.amount < 0 ? colors.success : colors.warning },
-                    ]}>
-                      {adj.amount < 0 ? '-' : '+'}₹{Math.abs(adj.amount).toFixed(2)}
-                    </Text>
+                    <View style={[styles.severityBadge, { backgroundColor: t.active ? barColor + '20' : 'transparent' }]}>
+                      <Text style={[styles.severityText, { color: t.active ? barColor : colors.success }]}>
+                        {t.active ? `${severityPct}%` : "SAFE"}
+                      </Text>
+                    </View>
                   </View>
-                ))}
-                <View style={styles.adjustTotal}>
-                  <Text style={styles.adjustTotalLabel}>Weekly total</Text>
-                  <Text style={styles.adjustTotalValue}>
-                    ₹{planDetails.weekly_premium_inr.toFixed(2)}
-                  </Text>
+
+                  {/* Real-time metrics row */}
+                  {t.active && (
+                    <View style={styles.triggerMetrics}>
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricLabel}>Severity</Text>
+                        <Text style={[styles.metricValue, { color: barColor }]}>{severityPct}%</Text>
+                      </View>
+                      <View style={styles.metricDivider} />
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricLabel}>Loss Factor</Text>
+                        <Text style={styles.metricValue}>{t.loss_multiplier.toFixed(2)}x</Text>
+                      </View>
+                      <View style={styles.metricDivider} />
+                      <View style={styles.metricItem}>
+                        <Text style={styles.metricLabel}>Status</Text>
+                        <Text style={[styles.metricValue, { color: colors.danger }]}>ACTIVE</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Severity bar */}
+                  <View style={styles.severityBarBg}>
+                    <View style={[
+                      styles.severityBarFill,
+                      {
+                        width: t.active ? `${Math.min(severityPct, 100)}%` : '0%',
+                        backgroundColor: barColor,
+                      },
+                    ]} />
+                  </View>
                 </View>
-              </View>
-            </>
-          )}
+              );
+            })}
+          </View>
+
+          {/* ── Live Air Quality Monitor ── */}
+          <Text style={styles.sectionLabel}>LIVE AIR QUALITY</Text>
+          <AQIPanel latitude={premiumData.latitude} longitude={premiumData.longitude} />
+
+          {/* ── City Disruption Feed ── */}
+          <Text style={styles.sectionLabel}>CITY DISRUPTION FEED</Text>
+          <CityAlertsFeed latitude={premiumData.latitude} longitude={premiumData.longitude} />
 
           {/* ── Claim Simulator ── */}
           <Text style={styles.sectionLabel}>CLAIM SIMULATOR</Text>
           <View style={styles.claimCard}>
             {lossRatio > 0.15 ? (
-              <>
-                <View style={styles.claimWarningRow}>
-                  <Text style={styles.claimWarningIcon}>⚠️</Text>
-                  <Text style={styles.claimWarningText}>
-                    Weather threshold breached — auto-payout eligible
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.claimButton, isSimulating && { opacity: 0.6 }]}
-                  onPress={handleSimulate}
-                  disabled={isSimulating}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.claimButtonText}>
-                    {isSimulating ? '⏳ Processing UPI...' : '💸 Simulate Auto-Claim'}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={styles.claimSubtext}>
-                  Estimated payout: ₹{Math.round(planDetails.expected_weekly_payout_inr)}
+              <View style={styles.claimWarningRow}>
+                <Text style={styles.claimWarningIcon}>⚠️</Text>
+                <Text style={styles.claimWarningText}>
+                  Weather threshold breached — auto-payout eligible
                 </Text>
-              </>
+              </View>
             ) : (
-              <View style={styles.claimSafe}>
+              <View style={styles.claimWarningRow}>
                 <Text style={styles.claimSafeIcon}>🟢</Text>
-                <Text style={styles.claimSafeText}>Conditions normal — no payout required</Text>
-                <Text style={styles.claimSafeHint}>
-                  When weather triggers breach thresholds, payouts are automatic via UPI.
+                <Text style={styles.claimSafeText}>
+                  Conditions normal — no payout required today
                 </Text>
               </View>
             )}
+
+            <TouchableOpacity
+              style={[styles.claimButton, isSimulating && { opacity: 0.6 }, lossRatio <= 0.15 && { backgroundColor: 'rgba(255, 152, 0, 0.15)', borderColor: colors.orange, marginTop: spacing.md }]}
+              onPress={handleSimulate}
+              disabled={isSimulating}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.claimButtonText, lossRatio <= 0.15 && { color: colors.orange }]}>
+                {isSimulating ? '⏳ Processing UPI...' : lossRatio > 0.15 ? '💸 Simulate Auto-Claim' : '⚡ DEMO: Force Payout Trigger'}
+              </Text>
+            </TouchableOpacity>
+            
+            <Text style={styles.claimSubtext}>
+              {lossRatio <= 0.15 ? 'Tap to test the parametric payout engine' : `Estimated payout: ₹${Math.round(planDetails.expected_weekly_payout_inr)}`}
+            </Text>
           </View>
 
           {/* ── Model Info ── */}
@@ -366,6 +463,25 @@ export default function DashboardScreen({ route }: Props) {
           <View style={{ height: 40 }} />
         </Animated.View>
       </ScrollView>
+
+      {/* Floating Action Button for AI Chatbot */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        activeOpacity={0.8}
+        onPress={() => setIsChatVisible(true)}
+      >
+        <LinearGradient 
+          colors={['#5eead4', '#2dd4bf']} 
+          style={styles.fabGradient}
+        >
+          <Ionicons name="hardware-chip-outline" size={28} color="#042f2e" />
+        </LinearGradient>
+      </TouchableOpacity>
+
+      <GigBotModal 
+        visible={isChatVisible} 
+        onClose={() => setIsChatVisible(false)} 
+      />
     </View>
   );
 }
@@ -458,7 +574,7 @@ const styles = StyleSheet.create({
   },
   lineChart: {
     borderRadius: borderRadius.lg,
-    paddingRight: 20, 
+    paddingRight: 20,
     paddingLeft: 10,  // Prevents Y-axis text from clipping on Android
   },
 
@@ -466,6 +582,26 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.aqua,
     letterSpacing: 2, marginBottom: spacing.lg,
+  },
+
+  // Coverage hours
+  coverageHoursBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.lg,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.15)',
+  },
+  coverageHoursText: {
+    fontSize: fontSize.xs,
+    color: colors.aqua,
+    fontWeight: fontWeight.semibold,
+    flex: 1,
   },
 
   // Triggers
@@ -490,46 +626,7 @@ const styles = StyleSheet.create({
     borderRadius: 2, marginTop: spacing.md, overflow: 'hidden',
   },
   severityBarFill: { height: 4, borderRadius: 2 },
-  noTriggersCard: {
-    backgroundColor: colors.bgCard, borderRadius: borderRadius.lg,
-    padding: spacing.xxl, alignItems: 'center', marginBottom: spacing.xxl,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  noTriggersIcon: { fontSize: 32, marginBottom: spacing.sm },
-  noTriggersText: { fontSize: fontSize.md, color: colors.success, fontWeight: fontWeight.semibold },
-
-  // Zone
-  zoneGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.xxl,
-  },
-  zoneItem: {
-    width: '47%' as any, backgroundColor: colors.bgCard, borderRadius: borderRadius.lg,
-    padding: spacing.lg, alignItems: 'center',
-    borderWidth: 1, borderColor: colors.border,
-  },
-  zoneIcon: { fontSize: 24, marginBottom: spacing.sm },
-  zoneValue: { fontSize: fontSize.lg, fontWeight: fontWeight.heavy, color: colors.textPrimary, marginBottom: 2 },
-  zoneLabel: { fontSize: fontSize.xs, color: colors.textMuted },
-
-  // Adjustments
-  adjustCard: {
-    backgroundColor: colors.bgCard, borderRadius: borderRadius.lg,
-    padding: spacing.lg, marginBottom: spacing.xxl,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  adjustRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  adjustLabel: { fontSize: fontSize.sm, color: colors.textSecondary, textTransform: 'capitalize' },
-  adjustReason: { fontSize: 10, color: colors.textMuted, marginTop: 2, maxWidth: 240 },
-  adjustValue: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
-  adjustTotal: {
-    flexDirection: 'row', justifyContent: 'space-between', paddingTop: spacing.md,
-  },
-  adjustTotalLabel: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
-  adjustTotalValue: { fontSize: fontSize.xl, fontWeight: fontWeight.heavy, color: colors.orange },
-
+  
   // Claims
   claimCard: {
     backgroundColor: colors.bgCard, borderRadius: borderRadius.lg,
@@ -546,12 +643,138 @@ const styles = StyleSheet.create({
   },
   claimButtonText: { color: '#FFF', fontSize: fontSize.md, fontWeight: fontWeight.bold },
   claimSubtext: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', marginTop: spacing.md },
-  claimSafe: { alignItems: 'center' },
   claimSafeIcon: { fontSize: 32, marginBottom: spacing.sm },
   claimSafeText: { fontSize: fontSize.md, color: colors.success, fontWeight: fontWeight.semibold },
-  claimSafeHint: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', marginTop: spacing.sm },
 
   // Model
   modelInfo: { alignItems: 'center', paddingVertical: spacing.lg },
   modelInfoText: { fontSize: 10, color: colors.textMuted, letterSpacing: 0.5 },
+
+  // Trigger Metrics
+  triggerMetrics: {
+    flexDirection: 'row',
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.04)',
+  },
+  metricItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  metricLabel: {
+    fontSize: 9,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  metricValue: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.heavy,
+    color: colors.textPrimary,
+  },
+  metricDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  // Greeting
+  greetingHeader: {
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.lg,
+    marginTop: spacing.xs,
+  },
+  greetingText: {
+    fontSize: 28,
+    fontWeight: fontWeight.heavy as any,
+    color: colors.textPrimary,
+    letterSpacing: -1.2,
+    lineHeight: 34,
+  },
+  greetingMsg: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    marginTop: 4,
+    lineHeight: 22,
+    letterSpacing: -0.2,
+  },
+
+  // Notification Banner
+  notificationContainer: {
+    position: 'absolute',
+    top: 0, left: spacing.md, right: spacing.md,
+    zIndex: 9999,
+  },
+  notificationInner: {
+    backgroundColor: 'rgba(28, 28, 30, 0.95)',
+    borderRadius: 24,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...shadows.elevated,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  noteAppIcon: {
+    width: 38, height: 38,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  noteHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  noteAppName: {
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    letterSpacing: 1,
+  },
+  noteTime: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  noteTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+    marginBottom: 1,
+  },
+  noteBody: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  confetti: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    zIndex: 10000,
+    pointerEvents: 'none',
+  },
+  
+  // Chatbot FAB
+  fab: {
+    position: 'absolute',
+    bottom: spacing.xxl,
+    right: spacing.lg,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    ...shadows.elevated,
+    zIndex: 100,
+  },
+  fabGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.5)',
+  },
 });

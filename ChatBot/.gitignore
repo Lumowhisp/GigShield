@@ -1,0 +1,20 @@
+# Environment & Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+venv/
+.venv/
+
+# Uploads
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db

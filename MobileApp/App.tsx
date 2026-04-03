@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import React from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -12,6 +13,7 @@ import SignupScreen from './src/screens/SignupScreen';
 import LocationPermissionScreen from './src/screens/LocationPermissionScreen';
 import PlanSelectionScreen from './src/screens/PlanSelectionScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import PaymentScreen from './src/screens/PaymentScreen';
 import CoverageScreen from './src/screens/CoverageScreen';
 import WalletScreen from './src/screens/WalletScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
@@ -28,6 +30,7 @@ export type RootStackParamList = {
   Signup: undefined;
   Location: undefined;
   PlanSelection: { premiumData: PremiumResponse };
+  Payment: { premiumData: PremiumResponse; activePlan: string };
   MainTabs: { premiumData: PremiumResponse; activePlan: 'basic' | 'standard' | 'premium' };
 };
 
@@ -86,7 +89,7 @@ function MainTabs({ route }: any) {
         component={DashboardScreen} 
         initialParams={route.params}
       />
-      <Tab.Screen name="Coverage" component={CoverageScreen} />
+      <Tab.Screen name="Coverage" component={CoverageScreen} initialParams={route.params} />
       <Tab.Screen name="Wallet" component={WalletScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
@@ -139,6 +142,14 @@ export default function App() {
             options={{
               headerShown: false,
               animation: 'slide_from_bottom',
+            }}
+          />
+          <Stack.Screen
+            name="Payment"
+            component={PaymentScreen}
+            options={{
+              headerShown: false,
+              animation: 'fade',
             }}
           />
           <Stack.Screen

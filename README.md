@@ -1,92 +1,49 @@
-#  GigGuard
-**AI-Powered Parametric Insurance for India’s Gig Economy**  
-*Guidewire DEVTrails 2026 - Phase 1: Ideation & Foundation*
+# 🛡️ GudieWire / GigShield 
+
+Welcome to the GigShield monorepo! GigShield is a parametric insurance engine designed specifically for gig workers in India, providing dynamic, weather-based coverage and automated payouts.
+
+This repository holds the entire platform logic, from the sophisticated Machine Learning pricing backend to the beautifully animated React Native mobile app.
 
 ---
 
-## Overview
-India’s 1.2 crore gig workers, specifically food delivery partners, face a critical "Livelihood Gap." While grossing ₹26K-30K/month, steep operational costs reduce net earnings to roughly ₹800–1,200/day. High-impact external disruptions—such as severe weather, public curfews, or platform outages—result in immediate, unrecoverable income loss without the safety net of formal employment benefits.
+## 📚 Developer Guides & Documentation
 
-**GigGuard** bridges this gap. It is an AI-enabled parametric insurance platform that replaces slow, manual claims processing with objective API triggers to automate instant payouts when uncontrollable events halt earning potential.
+To understand the core architecture of the codebase, please review the extensive developer guides linked below:
 
-## Target Persona & Workflow
-* **Persona:** Food Delivery Partners (Zomato / Swiggy in Metro/Tier-1 Cities).
-* **Coverage Scope:** Loss of Income only. (Strictly excludes health, vehicle repair, or accidents).
-* **Core Workflow:**
-  1. **Onboard:** Rider registers via the GigGuard Mobile App and links an operational UPI ID.
-  2. **Opt-In:** Rider subscribes to a dynamic weekly micro-premium tier.
-  3. **Trigger Event:** An external disruption occurs (e.g., severe cloudburst/flooding).
-  4. **Validation:** Backend APIs confirm the disruption in the rider's active geo-fenced commercial zone.
-  5. **Auto-Payout:** AI verifies location integrity and executes an instant UPI payout.
-
-## Financial Model & Parametric Triggers
-Gig workers operate on weekly cash flows. GigGuard utilizes a **3-Tier Weekly Premium Model**:
-* **Basic (₹30/week):** Covers up to ₹500/week.
-* **Standard (₹60/week):** Covers up to ₹1,200/week.
-* **Premium (₹100/week):** Covers up to ₹2,500/week.
-
-*Note: Premiums are dynamically calibrated by our AI based on hyper-local disruption histories (e.g., flood-prone zones carry a dynamically adjusted premium).*
-
-**Premium Justification & Scale:**
-* **Affordability:** At ₹30–₹100/week, the premium requires just ~0.5% - 1.6% of a worker's weekly net income (₹6,000–₹7,000), ensuring rapid gig-economy adoption.
-* **Income Replacement:** ₹500 replaces a lost "Peak Shift" (e.g., 4 hrs during an evening cloudburst), ₹1,200 directly maps to a full day of net earnings, and ₹2,500 safeguards against severe multi-day disruptions (e.g., 48-hour severe smog). 
-* **Actuarial Feasibility:** Although urban disruptions happen 50-70 days a year, combining precise parametric API triggers with the AI risk engine (adjusting premiums higher for high-risk zones) guarantees the claim liquidity pool remains consistently profitable.
-
-### Payout Calculation Models
-To ensure fairness and scale with the severity of disruptions, the platform utilizes advanced mathematical models for payouts:
-* **Fixed Model:** Constant binary payout triggered immediately (used for simple Basic Tier events).
-* **Scalable Model:** Payout scales proportionally to the severity of the event: `Payout = k × (Actual Value − Threshold)`
-* **Multi-Trigger Scoring:** Uses weighted logic spanning multiple data points: `Score = (w₁ × Rainfall) + (w₂ × AQI) + (w₃ × Temp)` -> `IF Score > Threshold THEN Payout`
-* **Income-Based Validation:** Caps potential payouts directly against algorithmic predictions of lost earnings: `Payout = min(Predicted_Income × Loss_Factor, Max_Limit)`
-
-**Objective API Triggers:**
-* **Environmental:** Heavy Rainfall (>40mm/24h), Extreme Heat (>45°C), or **Intelligent AQI**. *(Source: OpenWeatherMap API)*
-  * *Smart AQI Logic:* Prevents unprofitable payouts from brief spikes. (Partial: AQI > 300 for 24h | Full: AQI > 400 for 48h | Immediate: AQI > 450).
-* **Infrastructure/Social:** Unplanned curfews or severe route blockages. *(Source: MapMyIndia Traffic/Incident APIs)*
-* **Platform Tech:** Extended primary delivery app outages. *(Source: Simulated Uptime APIs)*
-
-**Platform Choice:** A **Mobile-First PWA/Native App**, built specifically for riders who operate entirely via smartphones.
-
-## AI / ML Integration: Dynamic Risk & Fraud Triangulation
-GigGuard doesn't rely on static pricing or manual claim reviews. We use Machine Learning to power two core engines:
-* **Predictive Granular Pricing (Risk Engine):** Instead of a flat city-wide premium, the ML model ingests 10+ years of Open-Meteo historical weather data and MapMyIndia traffic patterns to generate a hyper-local **Zone Risk Score**. This dynamically adjusts the Weekly Premium down to the municipal ward level. 
-* **Behavioral Fraud Triage (Trust Engine):** The AI automatically cross-references physical world telemetry. If a rider claims a payout for "impassable flooded roads," the AI queries live MapMyIndia traffic flows for that exact coordinate. If traffic is moving at 40 km/h, the claim is auto-flagged.
-
-**Real-Life Example:** Rahul delivers in **Andheri East (Low-Lying/Flood-Prone)**, while Amit delivers in **Bandra West (Well-Drained/Coastal)**. During the monsoon, the AI dynamically raises Rahul’s Base Premium slightly to ₹34/week due to the high probability of disrupted shifts, while Amit pays just ₹28/week. On July 15th, a massive cloudburst hits Andheri. Rahul is forced to stop working. The AI instantly reads the >40mm rain data from OpenWeatherMap and the "severe gridlock" data from MapMyIndia, automatically triggering Rahul's ₹500 payout without a single piece of paperwork.
-
-## Adversarial Defense Architecture (Anti-Spoofing)
-To neutralize organized GPS-spoofing fraud rings, GigGuard relies on multi-layered network topography validation rather than simple coordinate trust.
-
-1. **Cellular Triangulation (Cell ID):** GPS logic is cross-validated against connected cellular towers to detect immediate location discrepancies.
-2. **BSSID Mapping:** The app scans visible Wi-Fi MAC addresses to ensure the network terrain matches the commercial "red-zone," defeating at-home spoofing setups.
-3. **Sensor Telemetry:** Velocity heuristics and internal barometer checks flag impossible movement patterns or mismatched atmospheric pressure.
-4. **Asynchronous Verification (UX Balance):** If location confidence is degraded strictly due to storm-induced network drops, the automated payout is paused instead of rejected. An asynchronous micro-task (e.g., uploading a live photo of the flood layout) is triggered and verified via a lightweight vision model to release funds without penalizing honest workers.
-
-## Tech Stack & Phase Roadmap
-* **Frontend:** PWA / React Native (Optimized for outdoor visibility and low latency).
-* **Backend:** Node.js / Express (Handling API trigger polling).
-* **AI/ML Layer:** Python / FastAPI (Risk modeling, Cell-ID anomaly detection).
-* **Data Integrations:** OpenWeatherMap, MapMyIndia, Razorpay Sandbox.
-
-**Roadmap:**
-* **Phase 2 (Weeks 3-4):** Mobile UI development, premium ML modeling, and mock API parametric trigger wiring.
-* **Phase 3 (Weeks 5-6):** Implementation of Sensor Fraud Detection, Razorpay Test-Mode auto-payouts, and Admin Analytics Dashboard.
+- **[Master Architecture Guide](./Docs/Master_Architecture.md)**: Start here. Understand how the React Native App, FastAPI Backend, and ML Model interact in real-time.
+- **[ML Engine & Analytics Guide](./Docs/ML_Engine_Guide.md)**: Deep dive into the custom Actuarial math, the RandomForestRegressor ML model, and the 6 dynamic disruption triggers.
+- **[Backend API Reference](./Docs/Backend_API_Reference.md)**: FastAPI endpoints, Firebase synchronization, and MongoDB user architecture.
+- **[Mobile App Guide](./Docs/MobileApp_Guide.md)**: Details on the React Native Expo frontend, UI component tree, and Lottie implementations.
 
 ---
 
-## Team Contribution Guidelines
+## 🚀 Quick Start (Running Locally)
 
-This repository is a **private team project** developed for an AI Innovation Hackathon. Only project team members should contribute.
+You will need two terminal windows to run the stack.
 
-**Team Members:**
-- Aditya *(Workflow & Architecture)*
-- Aaryan *(Data Sources & API Integrations)*
-- Abhishek Binwal *(Parametric Triggers & Fraud Ideation)*
-- Shlok Gupta *(Income Disruption Research)*
-- Abhishek Yadav *(Research)*
+### 1. The FastAPI Backend
+```bash
+cd ML_Engine/GigShield_v2_copy
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 main.py
+```
+*The backend will run on `http://localhost:8000` via Uvicorn.*
 
-### Development Workflow
-1. **Clone the Repository:** `git clone https://github.com/Lumowhisp/GigShield.git`
-2. **Create a Feature Branch:** `git checkout -b feature/feature-name`
-3. **Commit Your Changes:** `git commit -m "feat: added weather trigger monitoring"`
-4. **Push & PR:** Push to origin and open a Pull Request to `main`. Do not push directly to `main`.
+### 2. The React Native Mobile App
+```bash
+cd MobileApp
+npm install
+npx expo start --clear
+```
+*Use the Expo Go app on your physical device, or press `i` to run in the iOS Simulator.*
+
+---
+
+## 🏆 Hackathon Specific Deliverables
+
+If you are a judge reviewing our submission, please note the following technical constraints we specifically engineered:
+1. **Underwriting (Active Days check)**: Evaluated directly in `main.py` dynamically shutting down Premium tiers if users have `< 5` active days.
+2. **Delhi NCR AQI Trigger**: A highly specific geo-fenced trigger mapping stagnation and solar blockage in `disruption_triggers.py` to trigger severe pollution warnings.
+3. **Catastrophic Event Circuit Breakers**: If the dynamic loss-ratio hits >85%, the backend safely intercepts the UI and triggers a suspension lock.

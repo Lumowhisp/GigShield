@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>GigShield — Rider Login & Sign Up</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GigShield — ML-powered parametric micro-insurance for gig-economy delivery riders. Login or create your account.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           DESIGN SYSTEM — GigShield Login Page
+           Theme: Premium Dark Navy Glassmorphism
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --bg-void: #0b1121;
+            --bg-card: rgba(15,23,42,.92);
+            --bg-input: rgba(15,23,42,.7);
+            --bg-section: rgba(30,41,59,.5);
+            --border-glass: rgba(255,255,255,.08);
+            --border-input: rgba(255,255,255,.08);
+
+            --accent-mint: #6ee7b7;
+            --accent-mint-dim: rgba(110,231,183,.07);
+            --accent-teal: #5eead4;
+            --accent-teal-dim: rgba(94,234,212,.07);
+            --accent-coral: #fda4af;
+            --accent-coral-dim: rgba(253,164,175,.06);
+            --accent-peach: #fcd34d;
+            --accent-peach-dim: rgba(252,211,77,.06);
+            --accent-lavender: #c4b5fd;
+            --accent-lavender-dim: rgba(196,181,253,.06);
+
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #475569;
+
+            --radius-sm: 10px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-xl: 24px;
+            --blur: blur(12px);
+            --shadow-card: 0 16px 48px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03);
+            --transition-fast: .2s cubic-bezier(.4,0,.2,1);
+            --transition-smooth: .35s cubic-bezier(.4,0,.2,1);
+        }
+
+        *{box-sizing:border-box;margin:0;padding:0}
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            background: var(--bg-void);
+            background-image:
+                radial-gradient(ellipse at 15% 0%, rgba(110,231,183,.04) 0%, transparent 55%),
+                radial-gradient(ellipse at 85% 100%, rgba(94,234,212,.03) 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 50%, rgba(196,181,253,.025) 0%, transparent 60%);
+            color: var(--text-primary);
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ─── MAIN CARD ─── */
+        .app-shell {
+            background: var(--bg-card);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            padding: 28px 24px;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-card);
+            max-width: 440px;
+            width: 100%;
+            border: 1px solid var(--border-glass);
+            position: relative;
+            overflow: hidden;
+        }
+        .app-shell::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(110,231,183,.25), rgba(94,234,212,.18), transparent);
+        }
+
+        /* ─── BRAND ─── */
+        .brand { text-align: center; margin-bottom: 4px; }
+        .brand h1 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; }
+        .brand h1 .g1 { color: var(--accent-mint); }
+        .brand h1 .g2 { color: var(--accent-teal); }
+        .brand-icon { font-size: 32px; display: block; margin-bottom: 4px; }
+        .tagline {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+            font-weight: 500;
+        }
+
+        /* ─── VALUE PROP STRIP ─── */
+        .value-strip {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .value-chip {
+            flex: 1;
+            text-align: center;
+            padding: 10px 6px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-section);
+            border: 1px solid var(--border-glass);
+            font-size: 10px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .value-chip .chip-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+        .value-chip strong { color: var(--accent-mint); display: block; font-size: 11px; }
+
+        /* ─── TYPOGRAPHY ─── */
+        .section-title {
+            text-align: center;
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 18px;
+            letter-spacing: -.2px;
+        }
+
+        /* ─── FORM ─── */
+        label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px 14px;
+            margin: 0 0 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-input);
+            background: var(--bg-input);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+            outline: none;
+        }
+        input:focus, select:focus {
+            border-color: var(--accent-mint);
+            box-shadow: 0 0 0 3px rgba(110,231,183,.08);
+        }
+        input::placeholder { color: #334155; }
+
+        /* ─── BUTTONS ─── */
+        button {
+            width: 100%;
+            padding: 13px;
+            border-radius: var(--radius-sm);
+            border: none;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-smooth);
+            font-family: 'Inter', sans-serif;
+            margin: 3px 0;
+            letter-spacing: .2px;
+        }
+        button:active { transform: scale(.98); }
+
+        .btn-green {
+            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+            color: #022c22;
+            box-shadow: 0 4px 16px rgba(52,211,153,.15);
+        }
+        .btn-green:hover { box-shadow: 0 6px 24px rgba(52,211,153,.22); transform: translateY(-1px); }
+
+        .btn-cyan {
+            background: linear-gradient(135deg, #5eead4 0%, #2dd4bf 100%);
+            color: #042f2e;
+            box-shadow: 0 4px 16px rgba(94,234,212,.15);
+        }
+        .btn-cyan:hover { box-shadow: 0 6px 24px rgba(94,234,212,.22); transform: translateY(-1px); }
+
+        .btn-amber {
+            background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%);
+            color: #451a03;
+            box-shadow: 0 4px 16px rgba(252,211,77,.15);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border-glass);
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-top: 4px;
+        }
+        .btn-ghost:hover { border-color: rgba(255,255,255,.15); color: var(--text-primary); }
+
+        /* ─── LINK ─── */
+        .link { color: var(--accent-peach); font-size: 12px; text-decoration: none; font-weight: 500; }
+        .link:hover { text-decoration: underline; }
+
+        /* ─── DIVIDER ─── */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+            margin: 20px 0;
+        }
+
+        /* ─── ALERTS ─── */
+        #alert_box { display: none; padding: 14px; margin-top: 14px; border-radius: var(--radius-sm); font-weight: 600; text-align: center; font-size: 12px; line-height: 1.5; }
+        .alert-success { background: rgba(6,78,59,.35); border: 1px solid rgba(110,231,183,.12); color: #a7f3d0; }
+        .alert-danger  { background: rgba(76,5,25,.35);  border: 1px solid rgba(253,164,175,.12); color: var(--accent-coral); }
+
+        /* ─── ANIMATIONS ─── */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn .35s ease; }
+
+        #status { color: var(--text-muted); text-align: center; font-size: 12px; margin-top: 10px; }
+
+        /* ─── OTP FIELDS ─── */
+        #fp_otp_fields { display: none; margin-top: 10px; }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         BRANDING
+         ═══════════════════════════════════════════════════════════════ -->
+    <div class="brand">
+        <span class="brand-icon">🛡️</span>
+        <h1><span class="g1">Gig</span><span class="g2">Shield</span></h1>
+    </div>
+    <p class="tagline">ML-Powered Parametric Insurance</p>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         ROLE SELECTION (Landing)
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="role_selection">
+        <!-- Value prop chips shown only on landing -->
+        <div class="value-strip">
+            <div class="value-chip">
+                <span class="chip-icon">🌧️</span>
+                <strong>Weather-Linked</strong>
+                Auto payouts on rain
+            </div>
+            <div class="value-chip">
+                <span class="chip-icon">⚡</span>
+                <strong>Instant Payout</strong>
+                No paperwork needed
+            </div>
+            <div class="value-chip">
+                <span class="chip-icon">🤖</span>
+                <strong>ML Pricing</strong>
+                Real-time risk score
+            </div>
+        </div>
+        <button class="btn-green" id="btn_rider_login" onclick="showSection('login')">🔐 Rider Login</button>
+        <button class="btn-cyan"  id="btn_create_account" onclick="showSection('register')">📝 Create Account</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         REGISTER SECTION
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="register_section" style="display:none" class="fade-in">
+        <div class="section-title" style="color:var(--accent-teal)">📝 Create Rider Account</div>
+        <p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:16px">Your Rider ID will be auto-generated</p>
+        <label>Full Name</label><input type="text" id="reg_name" placeholder="Rahul Sharma">
+        <label>Phone Number</label><input type="tel" id="reg_phone" placeholder="+91 98765 43210">
+        <label>Email Address</label><input type="email" id="reg_email" placeholder="rider@email.com">
+        <label>Age</label><input type="number" id="reg_age" placeholder="25" min="18">
+        <label>City</label><input type="text" id="reg_city" placeholder="Delhi">
+        <label>Avg Daily Income (₹)</label><input type="number" id="reg_income" placeholder="500" min="0" step="0.01">
+        <label>Create Password</label><input type="password" id="reg_pass" placeholder="••••••••">
+        <button class="btn-cyan" id="btn_register_submit" onclick="registerRider()">✅ Register Now</button>
+        <button class="btn-ghost" id="btn_reg_back" onclick="goBack()">← Back</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         LOGIN SECTION
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="login_section" style="display:none" class="fade-in">
+        <div class="section-title" style="color:var(--accent-mint)">🔐 Rider Portal</div>
+        <label>Email Address</label><input type="email" id="login_email" placeholder="rider@email.com">
+        <label>Password</label><input type="password" id="login_pass" placeholder="••••••••">
+        <div style="text-align:right;margin:-8px 0 12px"><a href="#" class="link" id="link_forgot" onclick="showForgotPassword()">Forgot Password?</a></div>
+        <button class="btn-green" id="btn_login_submit" onclick="loginUser()">⚡ Secure Login</button>
+        <button class="btn-ghost" id="btn_login_back" onclick="goBack()">← Back</button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         FORGOT PASSWORD SECTION
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="forgot_password_section" style="display:none" class="fade-in">
+        <div class="section-title" style="color:var(--accent-peach)">🔑 Reset Password</div>
+        <label>Email Address</label><input type="email" id="fp_email" placeholder="rider@email.com">
+        <button class="btn-amber" id="btn_send_otp" onclick="requestOTP()">📧 Send OTP</button>
+        <div id="fp_otp_fields">
+            <label>Enter OTP</label><input type="text" id="fp_otp" placeholder="6-digit OTP" maxlength="6">
+            <label>New Password</label><input type="password" id="fp_new_pass" placeholder="Enter new password">
+            <button class="btn-green" id="btn_reset_submit" onclick="resetPassword()">✅ Reset Password</button>
+        </div>
+        <button class="btn-ghost" id="btn_fp_back" onclick="goBack()">← Back</button>
+    </div>
+
+    <!-- Global Feedback -->
+    <p id="status"></p>
+    <div id="alert_box"></div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     JAVASCRIPT — Auth Logic
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+function showSection(s) {
+    document.getElementById('role_selection').style.display = 'none';
+    if (s === 'register') {
+        document.getElementById('register_section').style.display = 'block';
+    } else {
+        document.getElementById('login_section').style.display = 'block';
+        document.getElementById('login_email').value = '';
+        document.getElementById('login_pass').value = '';
+    }
+}
+
+function goBack() {
+    ['register_section','login_section','forgot_password_section','alert_box'].forEach(id => {
+        const e = document.getElementById(id);
+        if (e) e.style.display = 'none';
+    });
+    document.getElementById('role_selection').style.display = 'block';
+    document.getElementById('fp_otp_fields').style.display = 'none';
+    ['fp_email','fp_otp','fp_new_pass'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+}
+
+// ── Registration ──
+async function registerRider() {
+    const d = {
+        name:             document.getElementById('reg_name').value,
+        phone:            document.getElementById('reg_phone').value,
+        email:            document.getElementById('reg_email').value,
+        age:              parseInt(document.getElementById('reg_age').value) || 0,
+        city:             document.getElementById('reg_city').value,
+        avg_daily_income: parseFloat(document.getElementById('reg_income').value) || 0,
+        password:         document.getElementById('reg_pass').value,
+    };
+    if (!d.name || !d.email || !d.phone || !d.city || !d.password) { alert('All fields are required!'); return; }
+    if (d.age < 18) { alert('Age must be 18 or older.'); return; }
+
+    const r = await fetch('/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    const j = await r.json();
+    if (r.ok) { alert(j.message + '\n\nYou can now log in on the dashboard.'); goBack(); }
+    else alert('❌ Error: ' + j.detail);
+}
+
+// ── Login → redirect to dashboard ──
+async function loginUser() {
+    const e = document.getElementById('login_email').value;
+    const p = document.getElementById('login_pass').value;
+    if (!e || !p) { alert('Email and Password are required!'); return; }
+
+    document.getElementById('status').innerText = '⏳ Authenticating…';
+
+    const r = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e, password: p }) });
+    if (r.ok) {
+        const d = await r.json();
+        // Store token in sessionStorage so the dashboard can pick it up
+        sessionStorage.setItem('gg_token', d.token);
+        sessionStorage.setItem('gg_rider_id', d.rider_id || e);
+        document.getElementById('status').innerText = '✅ Login successful! Redirecting…';
+        setTimeout(() => { window.location.href = '/'; }, 600);
+    } else {
+        document.getElementById('status').innerText = '';
+        alert('❌ Login Failed! Invalid Credentials.');
+    }
+}
+
+// ── Forgot Password ──
+function showForgotPassword() {
+    document.getElementById('login_section').style.display = 'none';
+    document.getElementById('forgot_password_section').style.display = 'block';
+}
+
+async function requestOTP() {
+    const e = document.getElementById('fp_email').value;
+    if (!e) { alert('Enter your email.'); return; }
+    try {
+        const r = await fetch('/auth/forgot-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e }) });
+        const d = await r.json();
+        if (r.ok) { alert(d.message); document.getElementById('fp_otp_fields').style.display = 'block'; }
+        else alert('❌ ' + (d.detail || 'Failed.'));
+    } catch (ex) { alert('❌ ' + ex.message); }
+}
+
+async function resetPassword() {
+    const e = document.getElementById('fp_email').value;
+    const o = document.getElementById('fp_otp').value;
+    const p = document.getElementById('fp_new_pass').value;
+    if (!e || !o || !p) { alert('All fields required.'); return; }
+    try {
+        const r = await fetch('/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e, otp: o, new_password: p }) });
+        const d = await r.json();
+        if (r.ok) { alert(d.message); goBack(); }
+        else alert('❌ ' + (d.detail || 'Failed.'));
+    } catch (ex) { alert('❌ ' + ex.message); }
+}
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     GIGBOT — Floating AI Assistant (Marketing Mode)
+     ═══════════════════════════════════════════════════════════════════ -->
+<style>
+    /* ─── FAB ─── */
+    .gigbot-fab {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6ee7b7, #34d399);
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        box-shadow: 0 8px 28px rgba(110,231,183,.3), 0 2px 8px rgba(0,0,0,.3);
+        transition: all .3s cubic-bezier(.4,0,.2,1);
+        z-index: 10000;
+        color: #022c22;
+    }
+    .gigbot-fab:hover {
+        transform: scale(1.08) translateY(-2px);
+        box-shadow: 0 12px 36px rgba(110,231,183,.4), 0 4px 12px rgba(0,0,0,.3);
+    }
+    .gigbot-fab:active { transform: scale(.95); }
+    .gigbot-fab .fab-icon { transition: transform .3s; line-height: 1; }
+    .gigbot-fab.open .fab-icon { transform: rotate(90deg); }
+
+    /* ─── Chat Window ─── */
+    .gigbot-window {
+        position: fixed;
+        bottom: 92px;
+        right: 24px;
+        width: 370px;
+        max-height: 540px;
+        background: rgba(11, 17, 33, 0.88);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,.1);
+        border-radius: 18px;
+        box-shadow: 0 20px 60px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.04);
+        display: flex;
+        flex-direction: column;
+        z-index: 10000;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateY(16px) scale(.96);
+        pointer-events: none;
+        transition: opacity .3s cubic-bezier(.4,0,.2,1), transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    .gigbot-window.visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+    }
+
+    /* ─── Header ─── */
+    .gigbot-header {
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255,255,255,.06);
+        flex-shrink: 0;
+        background: linear-gradient(135deg, rgba(110,231,183,.06), rgba(94,234,212,.04));
+    }
+    .gigbot-header-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #f8fafc;
+        letter-spacing: .3px;
+    }
+    .gigbot-header-subtitle {
+        font-size: 9px;
+        color: #6ee7b7;
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
+    .gigbot-header-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #6ee7b7;
+        box-shadow: 0 0 8px rgba(110,231,183,.5);
+        animation: gbPulse 2s ease-in-out infinite;
+    }
+    @keyframes gbPulse { 0%,100%{box-shadow:0 0 4px rgba(110,231,183,.3)} 50%{box-shadow:0 0 16px rgba(110,231,183,.6)} }
+
+    /* ─── Messages ─── */
+    .gigbot-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 260px;
+        max-height: 360px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255,255,255,.08) transparent;
+    }
+    .gigbot-messages::-webkit-scrollbar { width: 4px; }
+    .gigbot-messages::-webkit-scrollbar-track { background: transparent; }
+    .gigbot-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
+
+    /* ─── Bubbles ─── */
+    .gb-msg {
+        max-width: 85%;
+        padding: 10px 14px;
+        border-radius: 14px;
+        font-size: 12.5px;
+        line-height: 1.6;
+        animation: gbFadeIn .3s ease;
+        word-wrap: break-word;
+    }
+    @keyframes gbFadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+    .gb-msg.user {
+        align-self: flex-end;
+        background: linear-gradient(135deg, rgba(110,231,183,.15), rgba(94,234,212,.1));
+        border: 1px solid rgba(110,231,183,.12);
+        color: #d1fae5;
+        border-bottom-right-radius: 4px;
+    }
+    .gb-msg.bot {
+        align-self: flex-start;
+        background: rgba(30,41,59,.55);
+        border: 1px solid rgba(255,255,255,.06);
+        color: #e2e8f0;
+        border-bottom-left-radius: 4px;
+    }
+    .gb-msg.typing {
+        align-self: flex-start;
+        background: rgba(30,41,59,.4);
+        border: 1px solid rgba(255,255,255,.04);
+        color: #94a3b8;
+        font-style: italic;
+        font-size: 11px;
+    }
+    .gb-msg.typing .typing-dots span {
+        display: inline-block;
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: #6ee7b7;
+        margin: 0 2px;
+        animation: typingBounce .6s ease-in-out infinite;
+    }
+    .gb-msg.typing .typing-dots span:nth-child(2) { animation-delay: .15s; }
+    .gb-msg.typing .typing-dots span:nth-child(3) { animation-delay: .3s; }
+    @keyframes typingBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+
+    .gb-msg .msg-label {
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .8px;
+        margin-bottom: 3px;
+        display: block;
+    }
+    .gb-msg.user .msg-label { color: #6ee7b7; }
+    .gb-msg.bot .msg-label  { color: #5eead4; }
+
+    /* ─── Input Area ─── */
+    .gigbot-input-area {
+        padding: 12px 14px;
+        border-top: 1px solid rgba(255,255,255,.06);
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+        background: rgba(15,23,42,.3);
+    }
+    .gigbot-input {
+        flex: 1;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.08);
+        background: rgba(15,23,42,.6);
+        backdrop-filter: blur(8px);
+        color: #f8fafc;
+        font-size: 13px;
+        font-family: 'Inter', sans-serif;
+        outline: none;
+        transition: border-color .2s;
+    }
+    .gigbot-input:focus { border-color: rgba(110,231,183,.3); }
+    .gigbot-input::placeholder { color: #475569; }
+
+    .gigbot-send {
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(135deg, #6ee7b7, #34d399);
+        color: #022c22;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        font-family: 'Inter', sans-serif;
+        transition: all .2s;
+        flex-shrink: 0;
+        width: auto;
+        margin: 0;
+    }
+    .gigbot-send:hover { box-shadow: 0 4px 14px rgba(110,231,183,.25); transform: translateY(-1px); }
+    .gigbot-send:active { transform: scale(.96); }
+    .gigbot-send:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* ─── Welcome ─── */
+    .gb-welcome {
+        text-align: center;
+        padding: 8px;
+        color: #94a3b8;
+        font-size: 11px;
+        line-height: 1.7;
+    }
+    .gb-welcome strong { color: #6ee7b7; }
+
+    /* ─── Badge ─── */
+    .mktg-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, rgba(110,231,183,.15), rgba(94,234,212,.1));
+        border: 1px solid rgba(110,231,183,.2);
+        border-radius: 20px;
+        padding: 3px 10px;
+        font-size: 9px;
+        font-weight: 700;
+        color: #6ee7b7;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-top: 6px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 480px) {
+        .gigbot-window { right: 12px; left: 12px; width: auto; bottom: 86px; }
+        .gigbot-fab { bottom: 18px; right: 18px; width: 50px; height: 50px; font-size: 20px; }
+    }
+</style>
+
+<!-- GigBot FAB -->
+<button class="gigbot-fab" id="gigbot_fab" onclick="toggleGigBot()" aria-label="Chat with GigBot">
+    <span class="fab-icon">🤖</span>
+</button>
+
+<!-- GigBot Chat Window -->
+<div class="gigbot-window" id="gigbot_window">
+    <div class="gigbot-header">
+        <div>
+            <div class="gigbot-header-title">🤖 GigBot — Marketing Mode</div>
+            <div class="gigbot-header-subtitle">GigShield AI • Groq llama-3.1-8b</div>
+        </div>
+        <div class="gigbot-header-dot"></div>
+    </div>
+    <div class="gigbot-messages" id="gigbot_messages">
+        <div class="gb-welcome">
+            Hey there! 👋<br>
+            I'm <strong>GigBot</strong> — your GigShield guide.<br>
+            Ask me why GigShield is India's smartest insurance for delivery riders!<br>
+            <span class="mktg-badge">✨ Powered by ML + Weather Data</span>
+        </div>
+    </div>
+    <div class="gigbot-input-area">
+        <input type="text" class="gigbot-input" id="gigbot_input" placeholder="Ask me about GigShield…" autocomplete="off">
+        <button class="gigbot-send" id="gigbot_send" onclick="sendGigBotMessage()">Chat</button>
+    </div>
+</div>
+
+<!-- GigBot Logic — Marketing Mode -->
+<script>
+(function() {
+    'use strict';
+
+    const GROQ_API_KEY  = "";
+    const GROQ_MODEL    = "llama-3.1-8b-instant";
+    const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+
+    const SYSTEM_PROMPT = {
+        role: "system",
+        content: "You are GigBot (Marketing Mode). Your goal is to explain why GigShield is the best parametric insurance for delivery riders in India. Explain how it uses ML and real-time weather data to give instant payouts without any paperwork. Convince riders to Create an Account. Use ₹ (INR) for any monetary examples — never use $. Keep responses professional, exciting, and concise (2-3 sentences max). Highlight key benefits: zero paperwork, instant payouts, ML-powered risk scoring, weather-linked triggers."
+    };
+
+    // ── Toggle ──
+    window.toggleGigBot = function() {
+        const win = document.getElementById('gigbot_window');
+        const fab = document.getElementById('gigbot_fab');
+        const isOpen = win.classList.contains('visible');
+        if (isOpen) {
+            win.classList.remove('visible');
+            fab.classList.remove('open');
+            fab.querySelector('.fab-icon').textContent = '🤖';
+        } else {
+            win.classList.add('visible');
+            fab.classList.add('open');
+            fab.querySelector('.fab-icon').textContent = '✕';
+            document.getElementById('gigbot_input').focus();
+        }
+    };
+
+    // ── Send Message ──
+    window.sendGigBotMessage = async function() {
+        const input   = document.getElementById('gigbot_input');
+        const msgArea = document.getElementById('gigbot_messages');
+        const sendBtn = document.getElementById('gigbot_send');
+        const userText = input.value.trim();
+        if (!userText) return;
+
+        input.value = '';
+        appendMessage('user', userText);
+
+        const typingEl = document.createElement('div');
+        typingEl.className = 'gb-msg typing';
+        typingEl.id = 'gb_typing';
+        typingEl.innerHTML = '<span class="msg-label">GigBot</span><div class="typing-dots"><span></span><span></span><span></span></div>';
+        msgArea.appendChild(typingEl);
+        scrollToBottom();
+
+        sendBtn.disabled = true;
+        input.disabled   = true;
+
+        try {
+            const response = await fetch(GROQ_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + GROQ_API_KEY,
+                    'Content-Type':  'application/json',
+                },
+                body: JSON.stringify({
+                    model:       GROQ_MODEL,
+                    messages:    [SYSTEM_PROMPT, { role: "user", content: userText }],
+                    temperature: 0.75,
+                    max_tokens:  300,
+                }),
+            });
+
+            const data = await response.json();
+            const typing = document.getElementById('gb_typing');
+            if (typing) typing.remove();
+
+            if (!response.ok) throw new Error(data.error?.message || 'Groq API error.');
+
+            const botReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't process that.";
+            appendMessage('bot', botReply);
+
+        } catch (err) {
+            const typing = document.getElementById('gb_typing');
+            if (typing) typing.remove();
+            appendMessage('bot', '⚠️ ' + err.message);
+        } finally {
+            sendBtn.disabled = false;
+            input.disabled   = false;
+            input.focus();
+        }
+    };
+
+    // ── Append ──
+    function appendMessage(role, text) {
+        const msgArea = document.getElementById('gigbot_messages');
+        const msg = document.createElement('div');
+        msg.className = 'gb-msg ' + role;
+        const label = role === 'user' ? 'You' : 'GigBot';
+        msg.innerHTML = '<span class="msg-label">' + label + '</span>' + escapeHTML(text);
+        msgArea.appendChild(msg);
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        const msgArea = document.getElementById('gigbot_messages');
+        requestAnimationFrame(() => { msgArea.scrollTop = msgArea.scrollHeight; });
+    }
+
+    function escapeHTML(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ── Enter key ──
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('gigbot_input');
+        if (input) {
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendGigBotMessage();
+                }
+            });
+        }
+    });
+})();
+</script>
+
+</body>
+</html>

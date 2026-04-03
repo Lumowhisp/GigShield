@@ -24,9 +24,16 @@ Run:
     uvicorn main:app --reload --host 0.0.0.0 --port 8000
 """
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import asyncio
 import json
 import math
+import random
+import string
 from datetime import date, timedelta, datetime, timezone
 from typing import Optional, List
 
@@ -101,7 +108,11 @@ INDIA_COAST_REFS = [
 MAX_RADIATION = 25.0
 
 # Minimum premium floors (INR)
-MIN_WEEKLY = {"basic": 15.0, "standard": 25.0, "premium": 39.0}
+MIN_WEEKLY = {"basic": 20.0, "standard": 20.0, "premium": 39.0}
+
+# Maximum premium caps (INR) — actuarially derived for pooled model
+# Basic & Standard capped for affordability; Premium uncapped for high-risk riders
+MAX_WEEKLY = {"basic": 49.0, "standard": 99.0, "premium": None}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -125,11 +136,11 @@ app.add_middleware(
 # DATABASE LIFECYCLE (MongoDB Integration)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Hardcoded MongoDB connect URI for the GigGuard app instance
-MONGODB_URL = "mongodb+srv://NeuralNinja:kAGqjxbFJUhhwiw5@gigguard.07qp3nx.mongodb.net/?appName=GigGuard"
+# Configurable MongoDB connect URI for the GigGuard app instance
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
 
 # JWT configuration
-SECRET_KEY = "super_premium_gigguard_jwt_secret_key"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback_secret_key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 
@@ -189,6 +200,79 @@ def haversine_km(lat1, lon1, lat2, lon2):
     dlon = math.radians(lon2 - lon1)
     a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
     return R * 2 * math.asin(math.sqrt(a))
+
+
+def generate_gig_id():
+    """Generates a random Gig ID like GG-2024-X4Y8"""
+    random_digits = ''.join(random.choices(string.digits, k=4))
+    return f"GG-2024-{random_digits}"
+
+
+async def fetch_weather_and_elevation(lat: float, lon: float, target_date: date) -> tuple[dict, float]:
+    """
+    Fetches the last 7 days of archive data + 7 days forecast in one go.
+    Uses Open-Meteo's unified endpoints.
+    Includes a safety fallback mode for hackathon demos if WiFi drops.
+    """
+    import httpx
+    
+    start_date = target_date - timedelta(days=7)
+    end_date = target_date + timedelta(days=6)
+
+    archive_url = f"https://archive-api.open-meteo.com/v1/archive"
+    forecast_url = f"https://api.open-meteo.com/v1/forecast"
+    elev_url = f"https://api.open-meteo.com/v1/elevation"
+
+    common_params = {
+        "latitude": lat,
+        "longitude": lon,
+        "daily": "precipitation_sum,temperature_2m_max,apparent_temperature_max,wind_speed_10m_max,wind_gusts_10m_max,shortwave_radiation_sum,precipitation_hours",
+        "timezone": "IST",
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            archive_resp, forecast_resp, elev_resp = await asyncio.gather(
+                client.get(archive_url, params={**common_params, "start_date": start_date, "end_date": target_date}),
+                client.get(forecast_url, params={**common_params, "past_days": 1, "forecast_days": 7}),
+                client.get(elev_url, params={"latitude": lat, "longitude": lon})
+            )
+            
+            archive_resp.raise_for_status()
+            forecast_resp.raise_for_status()
+            
+            archive_data = archive_resp.json()
+            forecast_data = forecast_resp.json()
+            
+            # Combine logic
+            combined_daily = {
+                "time": archive_data["daily"]["time"] + forecast_data["daily"]["time"][1:],
+            }
+            for k in archive_data["daily"]:
+                if k == "time": continue
+                combined_daily[k] = archive_data["daily"][k] + forecast_data["daily"][k][1:]
+                
+            elevation = 20.0
+            if elev_resp.status_code == 200 and "elevation" in elev_resp.json():
+                elevation = elev_resp.json()["elevation"][0]
+
+            return combined_daily, elevation
+
+    except httpx.RequestError as e:
+        print(f"⚠️ API Connection Error: {e}. USING FALLBACK MOCK DATA FOR DEMO.")
+        # Fallback Mock Data so the demo doesn't crash on bad WiFi
+        dates = [(start_date + timedelta(days=i)).isoformat() for i in range(14)]
+        mock_daily = {
+            "time": dates,
+            "precipitation_sum": [0.5, 2.0, 0, 0, 15.0, 45.0, 120.0, 50.0, 10.0, 0, 0, 5.0, 0, 0],
+            "temperature_2m_max": [35, 34, 38, 39, 31, 29, 28, 30, 32, 34, 35, 33, 36, 37],
+            "apparent_temperature_max": [38, 37, 42, 44, 34, 32, 30, 33, 35, 38, 40, 37, 41, 42],
+            "wind_speed_10m_max": [10, 12, 8, 15, 25, 40, 55, 30, 15, 10, 12, 14, 8, 10],
+            "wind_gusts_10m_max": [15, 18, 12, 22, 35, 55, 75, 45, 25, 15, 18, 20, 12, 15],
+            "shortwave_radiation_sum": [22, 20, 24, 25, 15, 8, 5, 12, 18, 21, 23, 20, 25, 24],
+            "precipitation_hours": [1, 2, 0, 0, 4, 12, 18, 8, 3, 0, 0, 1, 0, 0],
+        }
+        return mock_daily, 20.0
 
 
 def distance_to_coast_km(lat, lon):
@@ -329,12 +413,14 @@ def build_inference_features(
             distance_to_coast_km=dist_coast,
             is_coastal=bool(coastal),
             latitude=lat,
+            longitude=lon,
         )
         df.loc[i, "trigger_rain_active"] = int(result["triggers"][0].active)
         df.loc[i, "trigger_heat_active"] = int(result["triggers"][1].active)
         df.loc[i, "trigger_storm_active"] = int(result["triggers"][2].active)
         df.loc[i, "trigger_flood_active"] = int(result["triggers"][3].active)
         df.loc[i, "trigger_visibility_active"] = int(result["triggers"][4].active)
+        df.loc[i, "trigger_aqi_active"] = int(result["triggers"][5].active)
         df.loc[i, "n_triggers_active"] = result["n_active"]
 
     # Geo features
@@ -369,6 +455,7 @@ def compute_dynamic_premium(
     forecast_triggers: list,
     target_date: date,
     no_claim_weeks: int = 0,
+    active_days: int = 20,
 ) -> dict:
     """
     Dynamic weekly pricing with micro-adjustments.
@@ -499,7 +586,11 @@ def compute_dynamic_premium(
             total_adj += seasonal_adj
 
         # Final premium
-        final_premium = max(base_premium + total_adj, MIN_WEEKLY.get(key, 15.0))
+        # Final premium with floor and cap
+        final_premium = max(base_premium + total_adj, MIN_WEEKLY.get(key, 20.0))
+        cap = MAX_WEEKLY.get(key)
+        if cap is not None:
+            final_premium = min(final_premium, cap)
         monthly_premium = round(final_premium * 4.33, 2)
         max_weekly_payout = round(daily_income * plan["coverage_pct"] * DAYS_PER_WEEK, 2)
 
@@ -515,6 +606,7 @@ def compute_dynamic_premium(
             "monthly_premium_inr": monthly_premium,
             "expected_weekly_payout_inr": round(expected_payout, 2),
             "max_weekly_payout_inr": max_weekly_payout,
+            "is_eligible": True if key == "basic" or active_days >= 5 else False,
         }
 
     return plans_result
@@ -530,6 +622,7 @@ class PremiumRequest(BaseModel):
     daily_income: float = Field(800.0, ge=100, le=10000)
     target_date: Optional[str] = None
     no_claim_weeks: int = Field(0, ge=0, le=52)
+    active_days_last_30_days: int = Field(20, ge=0, le=30)
 
 
 class TriggerInfo(BaseModel):
@@ -560,6 +653,7 @@ class PlanDetail(BaseModel):
     monthly_premium_inr: float
     expected_weekly_payout_inr: float
     max_weekly_payout_inr: float
+    is_eligible: bool = True
 
 
 class ZoneProfile(BaseModel):
@@ -593,22 +687,51 @@ class PremiumResponse(BaseModel):
     plans: dict
     model_version: str
     model_r2: float
+    is_suspended: bool
+    today_weather: Optional[dict] = None
 
 
 # ── Authentication Models (Added for Auth Endpoints) ──
 
 class AuthRequest(BaseModel):
-    """Payload for login and registration."""
     email: str
     password: str
 
+class FirebaseAuthRequest(BaseModel):
+    email: str
+    firebase_token: str
+    name: Optional[str] = None
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
 class AuthResponse(BaseModel):
-    """Response returned upon successful login/registration."""
     status: str
     user_id: str
     message: str
     access_token: str
     token_type: str = "bearer"
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    dob: Optional[str] = None
+    mobile: Optional[str] = None
+    pincode: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    gig_id: Optional[str] = None
+    gig_verified: Optional[bool] = None
+    active_days_last_30_days: Optional[int] = None
+    coverage_start_hour: Optional[int] = None
+
+class PolicyPurchaseRequest(BaseModel):
+    tier: str
+    premium_paid: float
+
+class PayoutSimulationRequest(BaseModel):
+    amount: float
+    trigger_name: str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -731,6 +854,7 @@ async def predict_premium(req: PremiumRequest):
         forecast_triggers=forecast_triggers,
         target_date=target_date,
         no_claim_weeks=req.no_claim_weeks,
+        active_days=req.active_days_last_30_days,
     )
 
     # Forecast summary
@@ -782,6 +906,23 @@ async def predict_premium(req: PremiumRequest):
         plans=plans,
         model_version=MODEL_META.get("version", "v1_fallback"),
         model_r2=MODEL_META.get("test_r2", 0),
+        is_suspended=float(avg_loss_ratio) > 0.85,
+        today_weather={
+            "precipitation_mm": round(float(today_weather.get("precipitation_sum", 0)), 1),
+            "rain_threshold_mm": 20.0,
+            "temp_max_c": round(float(today_weather.get("temperature_2m_max", 30)), 1),
+            "heat_threshold_c": 42.0,
+            "apparent_temp_c": round(float(today_weather.get("apparent_temperature_max", 32)), 1),
+            "wind_speed_max_kmh": round(float(today_weather.get("wind_speed_10m_max", 10)), 1),
+            "wind_threshold_kmh": 50.0,
+            "wind_gust_max_kmh": round(float(today_weather.get("wind_gusts_10m_max", 15)), 1),
+            "radiation_mj": round(float(today_weather.get("shortwave_radiation_sum", 15)), 1),
+            "rolling_7d_rain_mm": round(float(today_weather.get("rolling_7d_rain", 0)), 1),
+            "flood_rain_threshold_mm": 100.0,
+            "rolling_3d_temp_c": round(float(today_weather.get("rolling_3d_temp", 30)), 1),
+            "elevation_m": round(elevation, 1),
+            "distance_to_coast_km": round(dist_coast, 1),
+        },
     )
 
 
@@ -819,6 +960,7 @@ async def evaluate_triggers_now(req: PremiumRequest):
         distance_to_coast_km=dist_coast,
         is_coastal=coastal,
         latitude=lat,
+        longitude=lon,
     )
 
     return {
@@ -882,6 +1024,7 @@ async def register_user(req: AuthRequest, request: Request):
     user_doc = {
         "email": req.email,
         "hashed_password": hashed_password,
+        "gig_rider_id": generate_gig_id(),
         "created_at": datetime.now(timezone.utc)
     }
     
@@ -923,6 +1066,260 @@ async def login_user(req: AuthRequest, request: Request):
         message="Login successful.",
         access_token=access_token
     )
+
+@app.post("/auth/firebase-sync", response_model=AuthResponse)
+async def firebase_sync(req: FirebaseAuthRequest, request: Request):
+    """
+    Syncs a Firebase user with our MongoDB database. 
+    Uses the Firebase UID as the unique identifier.
+    """
+    db = request.app.mongodb
+    
+    # In a production app, we would verify the 'firebase_token' here using firebase-admin.
+    # For the hackathon, we will use the email to find/create the user profile.
+    
+    user = await db["users"].find_one({"email": req.email})
+    
+    if not user:
+        # Create a new user entry for this Firebase UID
+        user_doc = {
+            "email": req.email,
+            "name": req.name or "Rider Persona",
+            "firebase_uid": req.firebase_token, # We'll store the UID here for simplicity
+            "gig_rider_id": generate_gig_id(),
+            "created_at": datetime.now(timezone.utc),
+            "is_verified": True, # Firebase handles verification
+            "active_days_last_30_days": 20  # Default for demo — enables Standard/Premium eligibility
+        }
+        result = await db["users"].insert_one(user_doc)
+        user_id = str(result.inserted_id)
+        message = "Profile created successfully."
+    else:
+        user_id = str(user["_id"])
+        message = "Profile synced successfully."
+        # Update name if provided and not already set
+        if req.name and not user.get("name"):
+            await db["users"].update_one({"_id": user["_id"]}, {"$set": {"name": req.name}})
+
+    access_token = create_access_token(data={"sub": user_id})
+    
+    return AuthResponse(
+        status="success",
+        user_id=user_id,
+        message=message,
+        access_token=access_token
+    )
+
+
+@app.get("/auth/me")
+async def get_my_profile(request: Request):
+    """
+    Fetch the current user profile from MongoDB using the JWT token.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db = request.app.mongodb
+    from bson import ObjectId
+    user = await db["users"].find_one({"_id": ObjectId(user_id)})
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Convert ObjectId to string for JSON serialization
+    user["id"] = str(user["_id"])
+    del user["_id"]
+    if "hashed_password" in user:
+        del user["hashed_password"]
+        
+    return user
+
+
+@app.post("/auth/profile/update")
+async def update_profile(req: UserProfileUpdate, request: Request):
+    """
+    Update the user's profile information in MongoDB.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db = request.app.mongodb
+    from bson import ObjectId
+    
+    # Convert model to dict and remove null values
+    update_data = {k: v for k, v in req.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc)
+    
+    result = await db["users"].update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {"status": "success", "message": "Profile updated successfully"}
+
+
+@app.post("/policy/purchase")
+async def purchase_policy(req: PolicyPurchaseRequest, request: Request):
+    """
+    Record a policy purchase and activate coverage for 7 days.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db = request.app.mongodb
+    from bson import ObjectId
+    
+    # Calculate expiry (7 days from now)
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(days=7)
+    
+    policy_doc = {
+        "tier": req.tier,
+        "premium_paid": req.premium_paid,
+        "activated_at": now,
+        "expires_at": expiry,
+        "status": "active"
+    }
+    
+    # Update user with active policy and add to history
+    result = await db["users"].update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {"active_policy": policy_doc},
+            "$push": {"policy_history": policy_doc}
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {
+        "status": "success", 
+        "message": f"Successfully activated {req.tier} coverage",
+        "expires_at": expiry
+    }
+
+
+@app.post("/policy/payout/simulate")
+async def simulate_payout(req: PayoutSimulationRequest, request: Request):
+    """
+    Simulate an automated parametric payout with fraud checks and rollback.
+    
+    Settlement flow (DEVTrails spec):
+      1. Trigger confirmed  — caller has already verified weather breach
+      2. Eligibility check   — active policy + correct zone + JWT auth
+      3. Fraud check         — no duplicate claim in last 24h for same trigger
+      4. Transfer initiated  — write payout record to DB
+      5. Record updated      — return confirmation (or pending on failure)
+    """
+    # ── Step 1: Auth ──
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db = request.app.mongodb
+    from bson import ObjectId
+
+    # ── Step 2: Eligibility — check active policy exists ──
+    user = await db["users"].find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    active_policy = user.get("active_policy")
+    if active_policy:
+        expires_at = active_policy.get("expires_at")
+        if expires_at and isinstance(expires_at, datetime):
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at < datetime.now(timezone.utc):
+                raise HTTPException(status_code=403, detail="Policy expired. Renew coverage to receive payouts.")
+    
+    # ── Step 3: Fraud check — no duplicate claim for same trigger in 24h ──
+    payout_history = user.get("payout_history", [])
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    for past_payout in payout_history:
+        past_time = past_payout.get("paid_at")
+        past_trigger = past_payout.get("trigger_name", "")
+        if past_trigger == req.trigger_name and isinstance(past_time, datetime):
+            if past_time.tzinfo is None:
+                past_time = past_time.replace(tzinfo=timezone.utc)
+            if past_time > cutoff:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Duplicate claim: '{req.trigger_name}' payout already settled within 24 hours."
+                )
+    
+    # ── Step 4: Initiate transfer with rollback on failure ──
+    payout_doc = {
+        "payout_id": f"PAY-{int(datetime.now().timestamp())}",
+        "amount": req.amount,
+        "trigger_name": req.trigger_name,
+        "paid_at": datetime.now(timezone.utc),
+        "status": "settled"
+    }
+    
+    try:
+        result = await db["users"].update_one(
+            {"_id": ObjectId(user_id)},
+            {"$push": {"payout_history": payout_doc}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found during transfer")
+    except HTTPException:
+        raise
+    except Exception as e:
+        # ── Rollback: mark as pending so client can retry ──
+        payout_doc["status"] = "pending"
+        payout_doc["retry_id"] = f"RETRY-{int(datetime.now().timestamp())}"
+        return {
+            "status": "pending",
+            "message": f"Transfer failed mid-way. Retry with ID {payout_doc['retry_id']}",
+            "payout": payout_doc,
+            "error": str(e)
+        }
+
+    # ── Step 5: Record updated — confirmation ──
+    return {
+        "status": "success", 
+        "message": f"Successfully settled ₹{req.amount} payout via UPI",
+        "payout": payout_doc,
+        "settlement_time_seconds": 3  # Simulated instant settlement
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

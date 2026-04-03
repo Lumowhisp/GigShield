@@ -4,9 +4,10 @@ import * as Location from 'expo-location';
 import LottieView from 'lottie-react-native';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { fetchPremium } from '../services/api';
+import { fetchPremium, fetchUserProfile } from '../services/api';
 
 type Props = {
+  route: any;
   navigation: NativeStackNavigationProp<any, 'Location'>;
 };
 
@@ -17,7 +18,7 @@ const LOTTIE_URLS = {
   ai: 'https://lottie.host/b5a806b0-3ee4-4f07-9a4b-aa1cdbe068b6/wrGOIro3VA.lottie',
 };
 
-export default function LocationPermissionScreen({ navigation }: Props) {
+export default function LocationPermissionScreen({ navigation, route }: Props) {
   const [incomeStr, setIncomeStr] = useState('800');
   const [isLoading, setIsLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -51,7 +52,18 @@ export default function LocationPermissionScreen({ navigation }: Props) {
       setStatusMsg('Analyzing hyper-local weather risks via AI...');
       const premiumData = await fetchPremium(location.coords.latitude, location.coords.longitude, income);
       setIsLoading(false);
-      navigation.navigate('PlanSelection', { premiumData });
+
+      // Check if we have an active policy from login param
+      const activePolicy = route.params?.activePolicy;
+      if (activePolicy && activePolicy.status === 'active') {
+        const tier = activePolicy.tier.toLowerCase();
+        navigation.navigate('MainTabs', { 
+          premiumData, 
+          activePlan: tier as any 
+        });
+      } else {
+        navigation.navigate('PlanSelection', { premiumData });
+      }
     } catch (err: any) {
       setIsLoading(false);
       Alert.alert('API Error', err.message || 'Failed to fetch premium data.');

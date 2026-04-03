@@ -3,9 +3,16 @@
  * Connects to GigShield_v2 FastAPI backend
  */
 
+import Constants from 'expo-constants';
+
+// Dynamically resolve the Metro bundler's IP for local development via Expo Go
+const debuggerHost = Constants.expoConfig?.hostUri?.split(':')[0] 
+  ?? Constants.manifest?.debuggerHost?.split(':')[0] 
+  ?? '10.119.236.93'; // Fallback IP
+
 const BASE_URL = __DEV__
-  ? 'http://10.251.230.37:8000'
-  : 'http://10.251.230.37:8000';
+  ? `http://${debuggerHost}:8000`
+  : 'http://10.119.236.93:8000'; // Make sure to use production URL here in the future
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +32,36 @@ export interface AdjustmentInfo {
   reason: string;
 }
 
+export interface ActivePolicy {
+  tier: string;
+  premium_paid: number;
+  activated_at: string;
+  expires_at: string;
+  status: 'active' | 'expired' | 'cancelled';
+}
+
+export interface Payout {
+  payout_id: string;
+  amount: number;
+  trigger_name: string;
+  paid_at: string;
+  status: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name?: string;
+  gig_rider_id?: string;
+  created_at?: string;
+  is_verified?: boolean;
+  active_days_last_30_days?: number;
+  coverage_start_hour?: number | null;
+  active_policy?: ActivePolicy;
+  policy_history?: ActivePolicy[];
+  payout_history?: Payout[];
+}
+
 export interface PlanDetail {
   label: string;
   coverage_pct: number;
@@ -37,6 +74,7 @@ export interface PlanDetail {
   monthly_premium_inr: number;
   expected_weekly_payout_inr: number;
   max_weekly_payout_inr: number;
+  is_eligible: boolean;
 }
 
 export interface ZoneProfile {
@@ -84,6 +122,8 @@ export interface PremiumResponse {
 
   model_version: string;
   model_r2: number;
+  is_suspended: boolean;
+  today_weather?: any;
 }
 
 export interface HealthResponse {
@@ -209,6 +249,110 @@ export async function registerUser(email: string, password: string): Promise<Aut
     await saveToken(data.access_token);
   }
   return data;
+}
+
+export async function syncFirebaseUser(email: string, uid: string, name?: string): Promise<AuthResponse> {
+  const response = await fetch(`${BASE_URL}/auth/firebase-sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      firebase_token: uid,
+      name
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Sync failed.');
+  }
+
+  const data: AuthResponse = await response.json();
+  if (data.access_token) {
+    await saveToken(data.access_token);
+  }
+  return data;
+}
+
+export async function fetchUserProfile(): Promise<any> {
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${BASE_URL}/auth/me`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch profile: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function updateUserProfile(data: any): Promise<any> {
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${BASE_URL}/auth/profile/update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Update failed');
+  }
+
+  return response.json();
+}
+
+export async function purchasePolicy(tier: string, premium: number): Promise<any> {
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${BASE_URL}/policy/purchase`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+     },
+    body: JSON.stringify({ tier, premium_paid: premium }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Purchase failed');
+  }
+
+  return response.json();
+}
+
+/**
+ * Simulate an automated payout for the demo
+ */
+export async function simulatePayout(amount: number, triggerName: string): Promise<any> {
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${BASE_URL}/policy/payout/simulate`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+     },
+    body: JSON.stringify({ amount, trigger_name: triggerName }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Payout simulation failed');
+  }
+
+  return response.json();
 }
 
 export { BASE_URL };

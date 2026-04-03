@@ -8,13 +8,25 @@ import {
   KeyboardAvoidingView, 
   Platform,
   Animated,
-  ActivityIndicator
+  ActivityIndicator,
+  ScrollView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from '../theme';
-import { registerUser } from '../services/api';
+import { registerUser, syncFirebaseUser } from '../services/api';
 import PremiumInput from '../components/PremiumInput';
+import { auth } from '../config/firebaseConfig';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+// @ts-ignore
+import * as Google from 'expo-auth-session/providers/google';
+// @ts-ignore
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// ⚠️ PASTE YOUR GOOGLE WEB CLIENT ID HERE (from Firebase Console > Auth > Google > Web client ID)
+const GOOGLE_WEB_CLIENT_ID = "279360873235-s2ado1f82jlmbp60uqlbhkdta8fje60r.apps.googleusercontent.com";
 
 type AuthStackParamList = {
   Login: undefined;
@@ -31,10 +43,18 @@ export default function SignupScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Google Auth Session
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_WEB_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
 
   useEffect(() => {
     Animated.parallel([
@@ -51,6 +71,35 @@ export default function SignupScreen({ navigation }: Props) {
       }),
     ]).start();
   }, []);
+
+  // Handle Google Sign-In response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleCredential(id_token);
+    }
+  }, [response]);
+
+  const handleGoogleCredential = async (idToken: string) => {
+    setGoogleLoading(true);
+    setError('');
+    try {
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const user = userCredential.user;
+
+      console.log('Google Sign-Up success! UID:', user.uid);
+
+      // Sync with MongoDB
+      await syncFirebaseUser(user.email || '', user.uid, user.displayName || undefined);
+
+      navigation.navigate('Location');
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
@@ -79,8 +128,15 @@ export default function SignupScreen({ navigation }: Props) {
     setLoading(true);
 
     try {
-      const res = await registerUser(email, password);
-      console.log('Registration success! User ID:', res.user_id);
+      // 1. Firebase Register
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      console.log('Firebase Register success! UID:', user.uid);
+      
+      // 2. Sync with MongoDB
+      await syncFirebaseUser(email, user.uid);
+
       navigation.navigate('Location');
     } catch (err: any) {
       setError(err.message || 'An error occurred during registration');
@@ -100,88 +156,118 @@ export default function SignupScreen({ navigation }: Props) {
         style={styles.keyboardView} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Animated.View 
-          style={[
-            styles.content,
-            { 
-              opacity: fadeAnim, 
-              transform: [{ translateY: slideAnim }] 
-            }
-          ]}
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.header}>
-            <Text style={styles.brandTitle}>Onboarding</Text>
-            <Text style={styles.title}>Apply For Coverage</Text>
-            <Text style={styles.subtitle}>Protect your daily gig income starting today</Text>
-          </View>
+          <Animated.View 
+            style={[
+              styles.content,
+              { 
+                opacity: fadeAnim, 
+                transform: [{ translateY: slideAnim }] 
+              }
+            ]}
+          >
+            <View style={styles.header}>
+              <Text style={styles.brandTitle}>Onboarding</Text>
+              <Text style={styles.title}>Apply For Coverage</Text>
+              <Text style={styles.subtitle}>Protect your daily gig income starting today</Text>
+            </View>
 
-          <View style={styles.formContainer}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.03)', 'rgba(255,255,255,0.01)']}
-              style={[StyleSheet.absoluteFillObject, { borderRadius: borderRadius.xl }]}
-            />
+            <View style={styles.formContainer}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.03)', 'rgba(255,255,255,0.01)']}
+                style={[StyleSheet.absoluteFillObject, { borderRadius: borderRadius.xl }]}
+              />
 
-            <PremiumInput
-              label="Email Address"
-              themeColor={colors.aqua}
-              value={email}
-              onChangeText={(text) => { setEmail(text); setError(''); }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <PremiumInput
-              label="Create Password"
-              themeColor={colors.aqua}
-              value={password}
-              onChangeText={(text) => { setPassword(text); setError(''); }}
-              isPassword
-            />
-
-            <View style={{ marginBottom: spacing.sm }}>
               <PremiumInput
-                label="Confirm Password"
+                label="Email Address"
                 themeColor={colors.aqua}
-                value={confirmPassword}
-                onChangeText={(text) => { setConfirmPassword(text); setError(''); }}
+                value={email}
+                onChangeText={(text) => { setEmail(text); setError(''); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <PremiumInput
+                label="Create Password"
+                themeColor={colors.aqua}
+                value={password}
+                onChangeText={(text) => { setPassword(text); setError(''); }}
                 isPassword
               />
-            </View>
-            
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <TouchableOpacity 
-              activeOpacity={0.8}
-              onPress={handleSignup}
-              disabled={loading}
-              style={styles.buttonShadowWrapper}
-            >
-              <LinearGradient
-                colors={[colors.aquaLight, colors.aqua]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.signupButtonGlow}
+              <View style={{ marginBottom: spacing.sm }}>
+                <PremiumInput
+                  label="Confirm Password"
+                  themeColor={colors.aqua}
+                  value={confirmPassword}
+                  onChangeText={(text) => { setConfirmPassword(text); setError(''); }}
+                  isPassword
+                />
+              </View>
+              
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <TouchableOpacity 
+                activeOpacity={0.8}
+                onPress={handleSignup}
+                disabled={loading}
+                style={styles.buttonShadowWrapper}
               >
-                {loading ? (
-                  <ActivityIndicator color={colors.bg} />
-                ) : (
-                  <Text style={styles.signupButtonText}>Create Account</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+                <LinearGradient
+                  colors={[colors.aquaLight, colors.aqua]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.signupButtonGlow}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.bg} />
+                  ) : (
+                    <Text style={styles.signupButtonText}>Create Account</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Already protected? </Text>
-            <TouchableOpacity 
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('Login')}
-            >
-              <Text style={styles.loginText}>Sign In</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+              {/* ── Divider ── */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* ── Google Sign-Up Button ── */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => promptAsync()}
+                disabled={!request || googleLoading}
+                style={styles.googleButton}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator color={colors.textPrimary} />
+                ) : (
+                  <View style={styles.googleButtonContent}>
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Already protected? </Text>
+              <TouchableOpacity 
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('Login')}
+              >
+                <Text style={styles.loginText}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -194,6 +280,10 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
@@ -262,6 +352,57 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: borderRadius.sm,
     overflow: 'hidden',
+  },
+  // ── Divider ──
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.xl,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  dividerText: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    marginHorizontal: spacing.md,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  // ── Google Button ──
+  googleButton: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: '800' as any,
+    color: '#4285F4',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    width: 28,
+    height: 28,
+    textAlign: 'center',
+    lineHeight: 28,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  googleButtonText: {
+    color: colors.textPrimary,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: 0.3,
   },
   footer: {
     flexDirection: 'row',

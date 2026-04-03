@@ -1,0 +1,28 @@
+# --- Core API Framework ---
+fastapi
+uvicorn[standard]
+
+# --- Configuration & Validation ---
+pydantic
+pydantic-settings
+email-validator
+
+# --- Security ---
+bcrypt
+PyJWT
+
+# --- HTTP Client (External API Calls) ---
+httpx
+
+# --- Database (MongoDB Async) ---
+motor
+certifi
+
+# --- Environment ---
+python-dotenv
+
+# --- File Uploads ---
+python-multipart
+
+# --- Testing / Scripts ---
+requests

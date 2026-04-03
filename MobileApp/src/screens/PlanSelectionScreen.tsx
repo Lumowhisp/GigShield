@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Image, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
 import PlanCard from '../components/PlanCard';
@@ -9,6 +10,7 @@ import type { PremiumResponse } from '../services/api';
 
 type RootStackParamList = {
   PlanSelection: { premiumData: PremiumResponse };
+  Payment: { premiumData: PremiumResponse; activePlan: string };
   MainTabs: { premiumData: PremiumResponse; activePlan: string };
 };
 
@@ -51,10 +53,7 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
   }, []);
 
   const handleActivate = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'MainTabs', params: { premiumData, activePlan: selectedPlan } }],
-    });
+    navigation.navigate('Payment', { premiumData, activePlan: selectedPlan });
   };
 
   const riskColor = RISK_COLORS[premiumData.disruption_risk] || colors.textMuted;
@@ -163,28 +162,80 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
             </View>
           )}
 
+          {/* ─ Pricing Formula Transparency ─ */}
+          <View style={styles.formulaCard}>
+            <View style={styles.formulaHeader}>
+              <Ionicons name="calculator-outline" size={18} color={colors.aqua} />
+              <Text style={styles.formulaTitle}>How Pricing Works</Text>
+            </View>
+            <View style={styles.formulaCodeBox}>
+              <Text style={styles.formulaCode}>
+                Premium = Loss_Ratio × Income × Coverage × Loading
+              </Text>
+            </View>
+            <View style={styles.formulaDetails}>
+              <View style={styles.formulaRow}>
+                <Text style={styles.formulaLabel}>ML Loss Ratio</Text>
+                <Text style={[styles.formulaValue, { color: premiumData.forecast_loss_ratio_7d > 0.15 ? colors.danger : colors.success }]}>
+                  {(premiumData.forecast_loss_ratio_7d * 100).toFixed(2)}%
+                </Text>
+              </View>
+              <View style={styles.formulaRow}>
+                <Text style={styles.formulaLabel}>Your Daily Income</Text>
+                <Text style={styles.formulaValue}>₹{premiumData.daily_income_inr}</Text>
+              </View>
+              <View style={styles.formulaRow}>
+                <Text style={styles.formulaLabel}>Model Accuracy (R²)</Text>
+                <Text style={[styles.formulaValue, { color: colors.aqua }]}>
+                  {(premiumData.model_r2 * 100).toFixed(2)}%
+                </Text>
+              </View>
+              <View style={styles.formulaRow}>
+                <Text style={styles.formulaLabel}>Zone Safety Discount</Text>
+                <Text style={[styles.formulaValue, { color: colors.success }]}>
+                  -₹{zp.weekly_discount_inr.toFixed(0)}/wk
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.formulaNote}>
+              🔒 100% parametric — payouts triggered automatically by weather data, no claim forms needed.
+            </Text>
+          </View>
+
           {/* ─ Plan cards ─ */}
           <Text style={styles.sectionLabel}>SELECT PROTECTION TIER</Text>
 
-          <PlanCard
-            planKey="basic"
-            plan={premiumData.plans.basic}
-            isSelected={selectedPlan === 'basic'}
-            onSelect={() => setSelectedPlan('basic')}
-          />
-          <PlanCard
-            planKey="standard"
-            plan={premiumData.plans.standard}
-            isSelected={selectedPlan === 'standard'}
-            isRecommended
-            onSelect={() => setSelectedPlan('standard')}
-          />
-          <PlanCard
-            planKey="premium"
-            plan={premiumData.plans.premium}
-            isSelected={selectedPlan === 'premium'}
-            onSelect={() => setSelectedPlan('premium')}
-          />
+          {premiumData.is_suspended ? (
+            <View style={styles.suspensionCard}>
+              <Ionicons name="warning" size={32} color={colors.danger} />
+              <Text style={styles.suspensionTitle}>ENROLLMENTS SUSPENDED</Text>
+              <Text style={styles.suspensionText}>
+                Due to catastrophic weather forecasts (Loss Ratio &gt; 85%) in your zone, we have temporarily paused new policy issuances to protect our risk pool. Please try again later when weather conditions normalize.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <PlanCard
+                planKey="basic"
+                plan={premiumData.plans.basic}
+                isSelected={selectedPlan === 'basic'}
+                onSelect={() => setSelectedPlan('basic')}
+              />
+              <PlanCard
+                planKey="standard"
+                plan={premiumData.plans.standard}
+                isSelected={selectedPlan === 'standard'}
+                isRecommended
+                onSelect={() => setSelectedPlan('standard')}
+              />
+              <PlanCard
+                planKey="premium"
+                plan={premiumData.plans.premium}
+                isSelected={selectedPlan === 'premium'}
+                onSelect={() => setSelectedPlan('premium')}
+              />
+            </>
+          )}
 
           <View style={{ height: 110 }} />
         </Animated.View>
@@ -192,8 +243,18 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
 
       {/* ─ Floating CTA ─ */}
       <View style={styles.floatingFooter}>
-        <TouchableOpacity style={styles.activateButton} onPress={handleActivate} activeOpacity={0.8}>
-          <Text style={styles.activateText}>Activate Coverage →</Text>
+        <TouchableOpacity 
+          style={[
+            styles.activateButton, 
+            premiumData?.is_suspended && { opacity: 0.5, backgroundColor: colors.textMuted }
+          ]} 
+          onPress={handleActivate} 
+          disabled={premiumData?.is_suspended}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.activateText}>
+            {premiumData?.is_suspended ? 'UNAVAILABLE' : 'Activate Coverage →'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -377,5 +438,93 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: fontSize.lg,
     fontWeight: fontWeight.bold,
+  },
+
+  // Formula Card
+  formulaCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xxl,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.1)',
+  },
+  formulaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.md,
+  },
+  formulaTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+  },
+  formulaCodeBox: {
+    backgroundColor: 'rgba(0, 229, 255, 0.06)',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.12)',
+  },
+  formulaCode: {
+    fontSize: 11,
+    fontWeight: fontWeight.bold,
+    color: colors.aqua,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  formulaDetails: {
+    marginBottom: spacing.md,
+  },
+  formulaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  formulaLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  formulaValue: {
+    fontSize: 13,
+    fontWeight: fontWeight.heavy,
+    color: colors.textPrimary,
+  },
+  formulaNote: {
+    fontSize: 10,
+    color: colors.textMuted,
+    lineHeight: 14,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+
+  // Suspension Card
+  suspensionCard: {
+    backgroundColor: 'rgba(255, 69, 58, 0.08)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 69, 58, 0.3)',
+    marginBottom: spacing.xl,
+  },
+  suspensionTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.heavy,
+    color: colors.danger,
+    marginTop: spacing.sm,
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  suspensionText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

@@ -2,6 +2,7 @@
   "expo": {
     "name": "GigGuard",
     "slug": "gigguard",
+    "scheme": "gigguard",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -31,7 +32,8 @@
           "locationWhenInUsePermission": "GigGuard needs your location to calculate zone-specific insurance premiums based on local weather risk."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-web-browser"
     ]
   }
 }
