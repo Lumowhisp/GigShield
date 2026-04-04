@@ -1,16 +1,19 @@
 # 🌐 Backend API Reference
 
-This document highlights the core FastAPI endpoints exposed in `GigShield_v2_copy/main.py`.
+This document highlights the core FastAPI endpoints exposed in `GigShield_v2_copy/main.py` which power the React Native experience.
 
 ## Base Configuration
 
 *   **Host Default**: `0.0.0.0:8000`
+*   **CORS**: Completely handled via FastAPI Middleware allowing `*`
 *   **Docs UI**: `http://localhost:8000/docs` (Swagger)
 
 ---
 
-## `POST /premium`
-**The Core ML AI Engine Route.** Fetches weather, runs the ML model, and returns the customized insurance plans.
+## The AI Engine
+
+### `POST /premium`
+**The Core ML AI Pricing Route.** Fetches weather, runs the 34-feature XGBoost model, checks DB underwriting status, and returns the customized insurance plans.
 
 **Request Payload:**
 ```json
@@ -18,41 +21,44 @@ This document highlights the core FastAPI endpoints exposed in `GigShield_v2_cop
   "latitude": 28.61,
   "longitude": 77.23,
   "daily_income": 1000.0,
-  "target_date": "2024-04-10", 
+  "target_date": "2026-04-04", 
   "no_claim_weeks": 2,
   "active_days_last_30_days": 20
 }
 ```
 
-**Response Overview:**
-Returns a `PremiumResponse` object inclusive of:
+**Response Overview (`PremiumResponse`):**
 - `is_suspended` (boolean, circuit breaker flag)
 - `disruption_risk` (string: low/moderate/high/extreme)
 - `zone_profile` (Zone metrics and safety score)
 - `forecast_risk` (7-day trigger forecast)
-- `plans` (Dictionary defining `basic`, `standard`, and `premium` tiers)
+- `plans` (Dictionary defining `basic`, `standard`, and `premium` tiers, along with all calculated `adjustments` arrays)
+- *(Fallback)*: If Open-Meteo drops connection, system falls back to a hardcoded data frame ensuring the presentation never crashes.
 
 ---
 
-## Auth Endpoints
+## User Authentication & Sync (`/auth`)
 
-### `POST /auth/register` & `POST /auth/login`
-Legacy MongoDB authentication system utilizing Email/Password combinations. JWT returns an `access_token` on success.
+### `POST /auth/login` | `POST /auth/register`
+MongoDB authentication systems storing `bcrypt` hashed passwords and creating standard JWT bearer tokens.
 
 ### `POST /auth/firebase-sync`
-**Primary App Route.** Receives a verified Firebase Token from the frontend and syncs/upserts the profile into the MongoDB `users` collection.
+**Primary App Route.** Receives a verified Firebase Token from the frontend and syncs/upserts the profile into the MongoDB `users` collection, handling the Firebase-to-JWT bridge securely.
 
-**Request:**
-```json
-{
-  "email": "rider@gudiewire.com",
-  "firebase_token": "uid_xxxx",
-  "name": "Alex"
-}
-```
+### `GET /auth/me` | `POST /auth/profile/update`
+Requires Bearer JWT. Retrieves and updates the dynamic MongoDB user document. Converts `_id` to string safely.
 
 ---
 
-## Error Handling & Fallbacks
+## Policy & Fraud Prevention (`/policy`)
 
-- **Weather API Hard Fallback:** If `httpx` encounters a `ConnectError` connecting to Open-Meteo API (e.g. hackathon wifi drops), `/premium` falls back to a realistic set of hard-coded mocked arrays to prevent crashes.
+### `POST /policy/purchase`
+Writes an active 7-day policy to the `users -> active_policy` mapping. 
+
+### `POST /policy/payout/simulate`
+Simulates a zero-touch parametric payout settlement with integrated fraud detection.
+**Flow:**
+1. Validates JWT and active policy timeline
+2. **Fraud Check**: Scans `payout_history` array to verify no identical payout has settled for that trigger in the last 24 hours.
+3. Performs a MongoDB atomicity `$push` rollback if any operation fails.
+4. Simulates a 3-second instant UPI credit via the `status: "settled"` return token.
