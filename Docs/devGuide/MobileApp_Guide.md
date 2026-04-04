@@ -1,6 +1,6 @@
 # 📱 Mobile App Guide
 
-The GigShield mobile application is built using React Native and Expo (SDK 54). It lives inside the `MobileApp/` directory.
+The GigGuard mobile application is built using React Native and Expo (SDK 54). It lives inside the `MobileApp/` directory.
 
 ## App Architecture
 
@@ -41,7 +41,7 @@ The UI is strictly based on a **Premium Dark Theme** utilizing the brand base co
 
 ## Lottie Animations Layer
 
-Lottie animations are crucial to the GigShield visual identity. URLs are mapped constantly in the code:
+Lottie animations are crucial to the GigGuard visual identity. URLs are mapped constantly in the code:
 - Safe states (`zoneSafety`)
 - High risk triggers (`heavy_rain`, `extreme_heat`)
 - Push-notification confettis on `simulatePayout()` success.

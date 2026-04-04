@@ -1,6 +1,6 @@
-# 🏗️ Master Architecture Guide: GigShield
+# 🏗️ Master Architecture Guide: GigGuard
 
-Welcome to the **GigShield** (GigGuard) parameteric micro-insurance platform. This document outlines how the entire ecosystem fits together, from the React Native Mobile App to the FastAPI Backend, MongoDB Database, and the XGBoost Machine Learning Engine.
+Welcome to the **GigGuard** (GigGuard) parameteric micro-insurance platform. This document outlines how the entire ecosystem fits together, from the React Native Mobile App to the FastAPI Backend, MongoDB Database, and the XGBoost Machine Learning Engine.
 
 ## 🌟 System Overview
 
@@ -19,7 +19,7 @@ The project is divided into three primary components:
    - Manages payouts, policy purchases, and fraud detection.
 
 3. **Machine Learning & Trigger Engine**
-   - Uses an `XGBoost v2.1` model (`gigshield_v2_model.joblib`) trained on 10 years of data to predict weekly loss probabilities based on 34 environment features.
+   - Uses an `XGBoost v2.1` model (`gigguard_v2_model.joblib`) trained on 10 years of data to predict weekly loss probabilities based on 34 environment features.
    - Contains a deterministic heuristic engine (`disruption_triggers.py`) evaluating 6 disruption triggers: Heavy Rain, Extreme Heat, Storm/Cyclone, Flood Zone, Poor Visibility, and Severe AQI (Delhi NCR).
 
 ---
@@ -27,7 +27,7 @@ The project is divided into three primary components:
 ## 🔄 Data Architecture & Flow
 
 ### The "Quote Engine" Lifecycle
-The core feature of GigShield is generating a dynamic premium quote based on real-time weather and ML risk analysis.
+The core feature of GigGuard is generating a dynamic premium quote based on real-time weather and ML risk analysis.
 
 1. **Client Trigger:** The mobile app fetches the user's GPS coordinates and calls `POST /premium`.
 2. **Context Gathering (Backend):**
@@ -57,4 +57,4 @@ The core feature of GigShield is generating a dynamic premium quote based on rea
 - For detailed mathematical pricing and actuarial rules, see **[ML Engine Guide](./ML_Engine_Guide.md)**.
 - For API routes and data schemas, see **[Backend API Reference](./Backend_API_Reference.md)**.
 - For frontend components, navigation, and state, see **[MobileApp Guide](./MobileApp_Guide.md)**.
-- For a breakdown of model performance, see **[ML Model Analysis](./ML_Model_Analysis_GigShield_v2.md)**.
+- For a breakdown of model performance, see **[ML Model Analysis](./ML_Model_Analysis_GigGuard_v2.md)**.

@@ -1,6 +1,6 @@
 # 🌐 Backend API Reference
 
-This document highlights the core FastAPI endpoints exposed in `GigShield_v2_copy/main.py` which power the React Native experience.
+This document highlights the core FastAPI endpoints exposed in `GigGuard_v2_copy/main.py` which power the React Native experience.
 
 ## Base Configuration
 

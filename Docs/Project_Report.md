@@ -1,4 +1,4 @@
-# GigShield — Project Report
+# GigGuard — Project Report
 
 ### AI-Powered Parametric Micro-Insurance for India's Gig Economy
 
@@ -37,7 +37,7 @@
 
 ## 1. Abstract
 
-GigShield (marketed as **GigGuard**) is an end-to-end, AI-powered parametric micro-insurance platform engineered to protect India's 15+ million gig delivery riders — Zomato, Swiggy, Uber, Rapido, Zepto — against income loss caused by uncontrollable external disruptions such as extreme weather events, severe air pollution, flooding, and cyclones. Unlike traditional insurance which relies on manual claim filing and weeks of adjudication, GigShield delivers a **fully automated, zero-touch claims pipeline**: real-time weather and environmental data are monitored continuously; when pre-defined parametric thresholds are breached, payouts are calculated actuarially and settled to the rider's wallet in under 3 seconds — with no human intervention and no paperwork.
+GigGuard (marketed as **GigGuard**) is an end-to-end, AI-powered parametric micro-insurance platform engineered to protect India's 15+ million gig delivery riders — Zomato, Swiggy, Uber, Rapido, Zepto — against income loss caused by uncontrollable external disruptions such as extreme weather events, severe air pollution, flooding, and cyclones. Unlike traditional insurance which relies on manual claim filing and weeks of adjudication, GigGuard delivers a **fully automated, zero-touch claims pipeline**: real-time weather and environmental data are monitored continuously; when pre-defined parametric thresholds are breached, payouts are calculated actuarially and settled to the rider's wallet in under 3 seconds — with no human intervention and no paperwork.
 
 The platform combines a **Random Forest ML model** (R² = 0.8773, trained on 126,175 rows across 35 GPS zones covering 10 years of weather data) with a **deterministic heuristic trigger engine** (6 automated disruption triggers) and a **dynamic actuarial pricing system** with weekly premiums as low as ₹20—all delivered through a premium React Native mobile application.
 
@@ -72,7 +72,7 @@ When a cloudburst floods Mumbai's streets, when Delhi's AQI crosses 400, or when
 
 ## 3. Proposed Solution
 
-**GigShield** is a parametric micro-insurance engine that reimagines insurance for the gig economy:
+**GigGuard** is a parametric micro-insurance engine that reimagines insurance for the gig economy:
 
 | Feature | Description |
 |---|---|
@@ -253,7 +253,7 @@ The `loss_ratio` target includes stochastic worker behavior noise — worker res
 
 ## 7. Disruption Trigger System
 
-GigShield implements **6 automated disruption triggers**, each calibrated against real Indian meteorological standards. These deterministic heuristics serve as safety floors — guaranteeing payouts on highly specific conditions regardless of ML output.
+GigGuard implements **6 automated disruption triggers**, each calibrated against real Indian meteorological standards. These deterministic heuristics serve as safety floors — guaranteeing payouts on highly specific conditions regardless of ML output.
 
 ### 7.1 Trigger Definitions
 
@@ -484,7 +484,7 @@ If `httpx` encounters a `ConnectError` to Open-Meteo (e.g., hackathon Wi-Fi issu
 
 ### 12.1 MongoDB Collections
 
-GigShield uses **4 MongoDB collections** with strict separation of concerns:
+GigGuard uses **4 MongoDB collections** with strict separation of concerns:
 
 | Collection | Model | Purpose |
 |---|---|---|
@@ -600,7 +600,7 @@ Each claim is assigned a fraud risk score:
 
 ## 15. AI Chatbot — GigBot
 
-GigBot is GigShield's in-app AI support assistant, available as a floating action button on the Dashboard. It is powered by **Llama 3.1 8B Instant** served via the **Groq** inference API.
+GigBot is GigGuard's in-app AI support assistant, available as a floating action button on the Dashboard. It is powered by **Llama 3.1 8B Instant** served via the **Groq** inference API.
 
 **Capabilities:**
 - Answer rider questions about coverage, pricing, and triggers
@@ -721,7 +721,7 @@ This follows the standard microinsurance cross-subsidy strategy:
 
 ## 20. Conclusion
 
-GigShield represents a paradigm shift in how insurance serves India's gig economy. By combining machine learning, actuarial science, and parametric automation into a single platform, we've created a product that is:
+GigGuard represents a paradigm shift in how insurance serves India's gig economy. By combining machine learning, actuarial science, and parametric automation into a single platform, we've created a product that is:
 
 - **Fast** — premiums calculated in milliseconds, payouts settled in 3 seconds
 - **Fair** — dynamic pricing ensures riders only pay for their actual zone risk
@@ -729,7 +729,7 @@ GigShield represents a paradigm shift in how insurance serves India's gig econom
 - **Transparent** — every formula, threshold, and calculation shown to the rider
 - **Scalable** — GPS-portable architecture works at any coordinate in India
 
-Weather can't stop gig workers from earning. **GigShield makes sure of it.**
+Weather can't stop gig workers from earning. **GigGuard makes sure of it.**
 
 ---
 

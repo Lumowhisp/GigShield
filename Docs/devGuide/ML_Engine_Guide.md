@@ -1,6 +1,6 @@
 # 🧠 Machine Learning Engine & Actuarial Guide
 
-This strictly documents the Machine Learning, Algorithmic Triggers, and Pricing logic driving GigShield. The engine lives mostly in `GigShield_v2_copy/main.py` and `disruption_triggers.py`.
+This strictly documents the Machine Learning, Algorithmic Triggers, and Pricing logic driving GigGuard. The engine lives mostly in `GigGuard_v2_copy/main.py` and `disruption_triggers.py`.
 
 ## 1. Disruption Triggers (Heuristic Rules)
 

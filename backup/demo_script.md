@@ -1,11 +1,11 @@
-# 🎬 GigShield Demo Video Script
+# 🎬 GigGuard Demo Video Script
 ### *Hackathon Presentation — 2 min 30 sec*
 
 ---
 
 ## 📋 Pre-Recording Checklist
 
-- [ ] Backend running at `https://gigshield-4u5z.onrender.com` (or local `0.0.0.0:8000`)
+- [ ] Backend running at `https://gigguard-4u5z.onrender.com` (or local `0.0.0.0:8000`)
 - [ ] MongoDB connected (check `/health` endpoint for `db_status: "ok"`)
 - [ ] Expo app running on device/simulator
 - [ ] A test account logged in (or have credentials ready)
