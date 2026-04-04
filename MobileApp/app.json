@@ -6,7 +6,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/logoFinal.png",
     "splash": {
+      "image": "./assets/logoFinal.png",
       "backgroundColor": "#0a0e1a",
       "resizeMode": "contain"
     },
@@ -18,12 +20,16 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/logoFinal.png",
         "backgroundColor": "#0a0e1a"
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
-      ]
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.geek_aditya.gigguard"
     },
     "plugins": [
       [
@@ -33,7 +39,14 @@
         }
       ],
       "expo-asset",
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8c845190-31ce-4633-8188-36c4a8c78bba"
+      }
+    }
   }
 }

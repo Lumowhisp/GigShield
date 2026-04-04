@@ -56,6 +56,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [showNotification, setShowNotification] = useState(false);
   const [isChatVisible, setIsChatVisible] = useState(false);
+  const [showAllTriggers, setShowAllTriggers] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const noteAnim = useRef(new Animated.Value(-100)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -297,10 +298,9 @@ export default function DashboardScreen({ route, navigation }: Props) {
                   width={screenWidth - spacing.xl * 2}
                   height={200}
                   fromZero={true}
-                  formatYLabel={(yValue) => {
-                    const rounded = Math.round(parseFloat(yValue));
-                    return isNaN(rounded) ? "0" : rounded.toString();
-                  }}
+                  yAxisLabel=""
+                  yAxisSuffix=""
+                  formatYLabel={(yValue) => `${Math.round(parseFloat(yValue))}%`}
                   chartConfig={{
                     backgroundColor: 'transparent',
                     backgroundGradientFrom: colors.bgCard,
@@ -317,7 +317,6 @@ export default function DashboardScreen({ route, navigation }: Props) {
                   }}
                   bezier
                   style={styles.lineChart}
-                  yAxisSuffix="%"
                 />
               </View>
             )}
@@ -326,18 +325,8 @@ export default function DashboardScreen({ route, navigation }: Props) {
           {/* ── Active Triggers with Real-Time Metrics ── */}
           <Text style={styles.sectionLabel}>REAL-TIME DISRUPTION TRIGGERS</Text>
           
-          {/* Coverage hours badge — DEVTrails B4: trigger must match worker's active hours */}
-          <View style={styles.coverageHoursBadge}>
-            <Ionicons name="time-outline" size={14} color={colors.aqua} />
-            <Text style={styles.coverageHoursText}>
-              Coverage Window: {planDetails.coverage_hours_per_day === 24 ? '24/7 Full Day' : 
-                planDetails.coverage_hours_per_day === 12 ? '6:00 AM – 6:00 PM' : 
-                '8:00 AM – 4:00 PM'} ({planDetails.coverage_hours_per_day}h/day)
-            </Text>
-          </View>
-
           <View style={styles.triggersContainer}>
-            {triggers.map((t: TriggerInfo, i: number) => {
+            {(showAllTriggers ? triggers : triggers.slice(0, 2)).map((t: TriggerInfo, i: number) => {
               const severityPct = Math.round(t.severity * 100);
               const barColor = t.severity > 0.5 ? colors.danger : t.severity > 0.25 ? colors.warning : colors.aqua;
               return (
@@ -408,6 +397,17 @@ export default function DashboardScreen({ route, navigation }: Props) {
                 </View>
               );
             })}
+            
+            {triggers.length > 2 && (
+              <TouchableOpacity 
+                style={{ alignItems: 'center', marginTop: 10, paddingVertical: 8 }}
+                onPress={() => setShowAllTriggers(!showAllTriggers)}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: 'bold' }}>
+                  {showAllTriggers ? 'View Less' : `+ ${triggers.length - 2} More Disruption Factors`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── Live Air Quality Monitor ── */}

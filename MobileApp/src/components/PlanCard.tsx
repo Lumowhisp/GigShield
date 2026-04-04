@@ -104,7 +104,7 @@ export default function PlanCard({ planKey, plan, isSelected, isRecommended, onS
               {plan.label}
             </Text>
             <Text style={styles.coverage}>
-              {plan.coverage_pct}% income · {plan.coverage_hours_per_day}h/day
+              {plan.coverage_pct}% Daily Income Covered
             </Text>
           </View>
 

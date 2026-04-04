@@ -5,14 +5,7 @@
 
 import Constants from 'expo-constants';
 
-// Dynamically resolve the Metro bundler's IP for local development via Expo Go
-const debuggerHost = Constants.expoConfig?.hostUri?.split(':')[0] 
-  ?? Constants.manifest?.debuggerHost?.split(':')[0] 
-  ?? '10.119.236.93'; // Fallback IP
-
-const BASE_URL = __DEV__
-  ? `http://${debuggerHost}:8000`
-  : 'http://10.119.236.93:8000'; // Make sure to use production URL here in the future
+const BASE_URL = 'https://gigshield-4u5z.onrender.com';
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -316,13 +309,13 @@ export async function purchasePolicy(tier: string, premium: number): Promise<any
 
   const response = await fetch(`${BASE_URL}/policy/purchase`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
-     },
+    },
     body: JSON.stringify({ tier, premium_paid: premium }),
   });
-  
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Purchase failed');
@@ -340,13 +333,13 @@ export async function simulatePayout(amount: number, triggerName: string): Promi
 
   const response = await fetch(`${BASE_URL}/policy/payout/simulate`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
-     },
+    },
     body: JSON.stringify({ amount, trigger_name: triggerName }),
   });
-  
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Payout simulation failed');

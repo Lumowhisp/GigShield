@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '../theme';
 
@@ -61,6 +61,7 @@ export default function CityAlertsFeed({ latitude, longitude }: Props) {
   const [incidents, setIncidents] = useState<IncidentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [showAllIncidents, setShowAllIncidents] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -215,7 +216,7 @@ export default function CityAlertsFeed({ latitude, longitude }: Props) {
         </View>
       )}
 
-      {incidents.map((inc) => {
+      {(showAllIncidents ? incidents : incidents.slice(0, 2)).map((inc) => {
         const cat = INCIDENT_CATEGORIES[inc.category] || INCIDENT_CATEGORIES[0];
         const sev = MAGNITUDE_SEVERITY[inc.magnitude] || MAGNITUDE_SEVERITY[0];
         return (
@@ -252,6 +253,17 @@ export default function CityAlertsFeed({ latitude, longitude }: Props) {
           </View>
         );
       })}
+
+      {incidents.length > 2 && (
+        <TouchableOpacity 
+          style={{ alignItems: 'center', marginTop: 4, marginBottom: 16, paddingVertical: 8 }}
+          onPress={() => setShowAllIncidents(!showAllIncidents)}
+        >
+          <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: 'bold' }}>
+            {showAllIncidents ? 'View Less' : `+ ${incidents.length - 2} More Incidents Nearby`}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {incidents.length === 0 && !loading && (
         <View style={styles.noIncidents}>

@@ -1149,6 +1149,10 @@ async def get_my_profile(request: Request):
     del user["_id"]
     if "hashed_password" in user:
         del user["hashed_password"]
+    
+    # Normalize collections to prevent 'undefined' on frontend
+    user["payout_history"] = user.get("payout_history", [])
+    user["policy_history"] = user.get("policy_history", [])
         
     return user
 

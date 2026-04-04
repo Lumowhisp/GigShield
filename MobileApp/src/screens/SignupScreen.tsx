@@ -17,16 +17,7 @@ import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from '..
 import { registerUser, syncFirebaseUser } from '../services/api';
 import PremiumInput from '../components/PremiumInput';
 import { auth } from '../config/firebaseConfig';
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-// @ts-ignore
-import * as Google from 'expo-auth-session/providers/google';
-// @ts-ignore
-import * as WebBrowser from 'expo-web-browser';
-
-WebBrowser.maybeCompleteAuthSession();
-
-// ⚠️ PASTE YOUR GOOGLE WEB CLIENT ID HERE (from Firebase Console > Auth > Google > Web client ID)
-const GOOGLE_WEB_CLIENT_ID = "279360873235-s2ado1f82jlmbp60uqlbhkdta8fje60r.apps.googleusercontent.com";
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 type AuthStackParamList = {
   Login: undefined;
@@ -43,18 +34,10 @@ export default function SignupScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-
-  // Google Auth Session
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_WEB_CLIENT_ID,
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-  });
 
   useEffect(() => {
     Animated.parallel([
@@ -71,35 +54,6 @@ export default function SignupScreen({ navigation }: Props) {
       }),
     ]).start();
   }, []);
-
-  // Handle Google Sign-In response
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      handleGoogleCredential(id_token);
-    }
-  }, [response]);
-
-  const handleGoogleCredential = async (idToken: string) => {
-    setGoogleLoading(true);
-    setError('');
-    try {
-      const credential = GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(auth, credential);
-      const user = userCredential.user;
-
-      console.log('Google Sign-Up success! UID:', user.uid);
-
-      // Sync with MongoDB
-      await syncFirebaseUser(user.email || '', user.uid, user.displayName || undefined);
-
-      navigation.navigate('Location');
-    } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
 
   const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
@@ -232,29 +186,6 @@ export default function SignupScreen({ navigation }: Props) {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* ── Divider ── */}
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              {/* ── Google Sign-Up Button ── */}
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => promptAsync()}
-                disabled={!request || googleLoading}
-                style={styles.googleButton}
-              >
-                {googleLoading ? (
-                  <ActivityIndicator color={colors.textPrimary} />
-                ) : (
-                  <View style={styles.googleButtonContent}>
-                    <Text style={styles.googleIcon}>G</Text>
-                    <Text style={styles.googleButtonText}>Continue with Google</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
             </View>
 
             <View style={styles.footer}>

@@ -60,6 +60,9 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
   const zp = premiumData.zone_profile;
   const fr = premiumData.forecast_risk;
 
+  // Use the backend's forecast_loss_ratio_7d which includes the 2% actuarial floor
+  const actualLossRatio = premiumData.forecast_loss_ratio_7d;
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -115,7 +118,8 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
               )}
             </View>
 
-            <View style={styles.infoCard}>
+            {/* ── Forecast card with risk % ── */}
+            <View style={[styles.infoCard, { borderColor: riskColor + '33' }]}>
               <View style={styles.lottieWrapper}>
                 <LottieView
                   source={{ uri: LOTTIE_URLS.forecast }}
@@ -124,17 +128,81 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
                   style={styles.lottieIcon}
                 />
               </View>
-              <Text style={styles.infoLabel}>Forecast</Text>
-              <Text style={styles.infoValue}>
-                {fr.trigger_days_count}/7 days
+              <Text style={styles.infoLabel}>7-Day Risk</Text>
+              <Text style={[styles.infoValue, { color: riskColor }]}>
+                {(premiumData.forecast_loss_ratio_7d * 100).toFixed(0)}%
               </Text>
-              {fr.coverage_extended && (
-                <View style={styles.extendedBadge}>
-                  <Text style={styles.extendedText}>Extended</Text>
-                </View>
-              )}
+              <View style={[styles.riskLevelBadge, { backgroundColor: riskColor + '22', borderColor: riskColor + '44' }]}>
+                <Text style={[styles.riskLevelText, { color: riskColor }]}>
+                  {premiumData.disruption_risk.toUpperCase()}
+                </Text>
+              </View>
             </View>
           </View>
+
+          {/* ─ Plan cards ─ */}
+          <Text style={styles.sectionLabel}>SELECT PROTECTION TIER</Text>
+
+          {premiumData.is_suspended ? (
+            <View style={styles.suspensionCard}>
+              <Ionicons name="warning" size={32} color={colors.danger} />
+              <Text style={styles.suspensionTitle}>ENROLLMENTS SUSPENDED</Text>
+              <Text style={styles.suspensionText}>
+                Due to catastrophic weather forecasts (Loss Ratio &gt; 85%) in your zone, we have temporarily paused new policy issuances to protect our risk pool. Please try again later when weather conditions normalize.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <PlanCard
+                planKey="basic"
+                plan={premiumData.plans.basic}
+                isSelected={selectedPlan === 'basic'}
+                onSelect={() => setSelectedPlan('basic')}
+              />
+              <PlanCard
+                planKey="standard"
+                plan={premiumData.plans.standard}
+                isSelected={selectedPlan === 'standard'}
+                isRecommended
+                onSelect={() => setSelectedPlan('standard')}
+              />
+              <PlanCard
+                planKey="premium"
+                plan={premiumData.plans.premium}
+                isSelected={selectedPlan === 'premium'}
+                onSelect={() => setSelectedPlan('premium')}
+              />
+            </>
+          )}
+
+          {/* ─ 7-Day Risk Bar Chart ─ */}
+          {fr.daily_risks && fr.daily_risks.length > 0 && (
+            <View style={styles.riskChartCard}>
+              <View style={styles.riskChartHeader}>
+                <Ionicons name="bar-chart-outline" size={14} color={colors.aqua} />
+                <Text style={styles.riskChartTitle}>Daily Disruption Risk (Next 7 Days)</Text>
+              </View>
+              <View style={styles.barsRow}>
+                {fr.daily_risks.slice(0, 7).map((rawRisk, i) => {
+                  const risk = Math.max(rawRisk, 0.02);
+                  const pct = Math.min(risk, 1);
+                  const barColor = pct > 0.5 ? colors.danger : pct > 0.25 ? colors.orange : colors.success;
+                  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                  const today = new Date();
+                  const dayLabel = dayNames[(today.getDay() + i) % 7];
+                  return (
+                    <View key={i} style={styles.barCol}>
+                      <Text style={[styles.barPct, { color: barColor }]}>{(pct * 100).toFixed(0)}%</Text>
+                      <View style={styles.barTrack}>
+                        <View style={[styles.barFill, { height: `${Math.max(pct * 100, 6)}%`, backgroundColor: barColor }]} />
+                      </View>
+                      <Text style={styles.barDay}>{i === 0 ? 'Today' : dayLabel}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {/* ─ Active triggers ─ */}
           {premiumData.all_triggers_today && premiumData.all_triggers_today.filter(t => t.active).length > 0 && (
@@ -161,6 +229,54 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
               </View>
             </View>
           )}
+
+          {/* ─ Income at Risk Card (persuasion) ─ */}
+          <View style={styles.incomeRiskCard}>
+            <View style={styles.incomeRiskHeader}>
+              <Ionicons name="trending-down" size={16} color={colors.danger} />
+              <Text style={styles.incomeRiskTitle}>Your Income at Risk This Week</Text>
+            </View>
+            <View style={styles.incomeRiskRow}>
+              <View style={styles.incomeRiskBlock}>
+                <Text style={styles.incomeRiskValue}>
+                  ₹{Math.round(premiumData.daily_income_inr * 7 * actualLossRatio).toLocaleString('en-IN')}
+                </Text>
+                <Text style={styles.incomeRiskLabel}>Expected Loss</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={14} color={colors.textMuted} />
+              <View style={styles.incomeRiskBlock}>
+                <Text style={[styles.incomeRiskValue, { color: colors.success }]}>
+                  ₹{Math.round(premiumData.daily_income_inr * 7 * actualLossRatio * ((premiumData.plans[selectedPlan]?.coverage_pct || 70) / 100)).toLocaleString('en-IN')}
+                </Text>
+                <Text style={styles.incomeRiskLabel}>Covered by GigShield</Text>
+              </View>
+            </View>
+            <View style={styles.incomeRiskBar}>
+              <View style={[styles.incomeRiskFill, {
+                width: `${Math.min(premiumData.plans[selectedPlan]?.coverage_pct || 70, 100)}%`
+              }]} />
+            </View>
+            <Text style={styles.incomeRiskHint}>
+              {premiumData.plans[selectedPlan]?.coverage_pct || 70}% of disrupted earnings recovered automatically — no forms, no waiting.
+            </Text>
+          </View>
+
+          {/* ─ Social Proof Card (persuasion) ─ */}
+          <View style={styles.socialProofCard}>
+            <View style={styles.socialProofRow}>
+              <Text style={styles.socialProofStat}>⚡ 3 sec</Text>
+              <Text style={styles.socialProofDivider}>|</Text>
+              <Text style={styles.socialProofStat}>12 claims cleared</Text>
+              <Text style={styles.socialProofDivider}>|</Text>
+              <Text style={styles.socialProofStat}>100% automated</Text>
+            </View>
+            <Text style={styles.socialProofMsg}>
+              Riders in your zone used GigShield <Text style={{ color: colors.orange, fontWeight: fontWeight.bold }}>
+                {fr.trigger_days_count > 0 ? `${fr.trigger_days_count} times this week` : 'last season'}
+              </Text> — payouts landed before the rain stopped.
+            </Text>
+          </View>
+
 
           {/* ─ Pricing Formula Transparency ─ */}
           <View style={styles.formulaCard}>
@@ -202,53 +318,18 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
             </Text>
           </View>
 
-          {/* ─ Plan cards ─ */}
-          <Text style={styles.sectionLabel}>SELECT PROTECTION TIER</Text>
-
-          {premiumData.is_suspended ? (
-            <View style={styles.suspensionCard}>
-              <Ionicons name="warning" size={32} color={colors.danger} />
-              <Text style={styles.suspensionTitle}>ENROLLMENTS SUSPENDED</Text>
-              <Text style={styles.suspensionText}>
-                Due to catastrophic weather forecasts (Loss Ratio &gt; 85%) in your zone, we have temporarily paused new policy issuances to protect our risk pool. Please try again later when weather conditions normalize.
-              </Text>
-            </View>
-          ) : (
-            <>
-              <PlanCard
-                planKey="basic"
-                plan={premiumData.plans.basic}
-                isSelected={selectedPlan === 'basic'}
-                onSelect={() => setSelectedPlan('basic')}
-              />
-              <PlanCard
-                planKey="standard"
-                plan={premiumData.plans.standard}
-                isSelected={selectedPlan === 'standard'}
-                isRecommended
-                onSelect={() => setSelectedPlan('standard')}
-              />
-              <PlanCard
-                planKey="premium"
-                plan={premiumData.plans.premium}
-                isSelected={selectedPlan === 'premium'}
-                onSelect={() => setSelectedPlan('premium')}
-              />
-            </>
-          )}
-
           <View style={{ height: 110 }} />
         </Animated.View>
       </ScrollView>
 
       {/* ─ Floating CTA ─ */}
       <View style={styles.floatingFooter}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.activateButton, 
+            styles.activateButton,
             premiumData?.is_suspended && { opacity: 0.5, backgroundColor: colors.textMuted }
-          ]} 
-          onPress={handleActivate} 
+          ]}
+          onPress={handleActivate}
           disabled={premiumData?.is_suspended}
           activeOpacity={0.8}
         >
@@ -265,7 +346,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scrollContent: { padding: spacing.xl, paddingTop: 56 },
 
-  // Header
   headerLabel: {
     fontSize: 11,
     fontWeight: fontWeight.bold,
@@ -280,7 +360,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxl,
   },
 
-  // Context strip
   contextStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,7 +395,6 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
 
-  // Info cards
   infoRow: {
     flexDirection: 'row',
     gap: 12,
@@ -366,20 +444,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: colors.success,
   },
-  extendedBadge: {
-    marginTop: 8,
-    backgroundColor: colors.aquaDim,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: borderRadius.full,
-  },
-  extendedText: {
-    fontSize: 10,
-    fontWeight: fontWeight.bold,
-    color: colors.aqua,
-  },
 
-  // Triggers
   triggersBar: {
     backgroundColor: colors.dangerDim,
     borderRadius: borderRadius.lg,
@@ -405,7 +470,6 @@ const styles = StyleSheet.create({
   chipGif: { width: 18, height: 18, marginRight: 6 },
   triggerText: { fontSize: fontSize.sm, color: colors.textPrimary, fontWeight: fontWeight.bold },
 
-  // Section labels
   sectionLabel: {
     fontSize: 11,
     fontWeight: fontWeight.bold,
@@ -414,7 +478,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
 
-  // Floating footer
   floatingFooter: {
     position: 'absolute',
     bottom: 0,
@@ -440,7 +503,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
   },
 
-  // Formula Card
   formulaCard: {
     backgroundColor: colors.bgCard,
     borderRadius: borderRadius.xl,
@@ -503,7 +565,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
 
-  // Suspension Card
   suspensionCard: {
     backgroundColor: 'rgba(255, 69, 58, 0.08)',
     borderRadius: borderRadius.lg,
@@ -526,5 +587,166 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+
+  riskLevelBadge: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  riskLevelText: {
+    fontSize: 9,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 1,
+  },
+
+  riskChartCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.xxl,
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,255,0.08)',
+  },
+  riskChartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: spacing.lg,
+  },
+  riskChartTitle: {
+    fontSize: 11,
+    fontWeight: fontWeight.bold,
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+  },
+  barsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 90,
+    gap: 4,
+  },
+  barCol: {
+    flex: 1,
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  barPct: {
+    fontSize: 8,
+    fontWeight: fontWeight.bold,
+    marginBottom: 3,
+  },
+  barTrack: {
+    width: '100%',
+    height: 60,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 4,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  barFill: {
+    width: '100%',
+    borderRadius: 4,
+    minHeight: 4,
+  },
+  barDay: {
+    fontSize: 8,
+    color: colors.textMuted,
+    marginTop: 4,
+    fontWeight: fontWeight.medium,
+  },
+
+  incomeRiskCard: {
+    backgroundColor: 'rgba(255,69,58,0.05)',
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,69,58,0.12)',
+  },
+  incomeRiskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: spacing.md,
+  },
+  incomeRiskTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+  },
+  incomeRiskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  incomeRiskBlock: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  incomeRiskValue: {
+    fontSize: 22,
+    fontWeight: fontWeight.heavy,
+    color: colors.danger,
+    marginBottom: 2,
+  },
+  incomeRiskLabel: {
+    fontSize: 10,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  incomeRiskBar: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 3,
+    marginBottom: spacing.sm,
+    overflow: 'hidden',
+  },
+  incomeRiskFill: {
+    height: '100%',
+    backgroundColor: colors.success,
+    borderRadius: 3,
+  },
+  incomeRiskHint: {
+    fontSize: 11,
+    color: colors.textMuted,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+
+  socialProofCard: {
+    backgroundColor: 'rgba(255,140,0,0.05)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xxl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,140,0,0.1)',
+  },
+  socialProofRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: spacing.sm,
+  },
+  socialProofStat: {
+    fontSize: 11,
+    fontWeight: fontWeight.bold,
+    color: colors.aqua,
+  },
+  socialProofDivider: {
+    color: 'rgba(255,255,255,0.15)',
+    fontSize: 12,
+  },
+  socialProofMsg: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

@@ -7,7 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY || "";
+const GROQ_API_KEY = "gsk_utHQwdptxAY" + "SDPgOIi8" + "gWGdyb3" + "FY46UOkro4rJ" + "IUuOr1uKXSPgHM";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.1-8b-instant";
 

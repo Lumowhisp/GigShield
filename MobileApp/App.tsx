@@ -37,7 +37,7 @@ export type RootStackParamList = {
 export type BottomTabParamList = {
   Home: { premiumData: PremiumResponse; activePlan: 'basic' | 'standard' | 'premium' };
   Coverage: undefined;
-  Wallet: undefined;
+  Passbook: undefined;
   Profile: undefined;
 };
 
@@ -76,7 +76,7 @@ function MainTabs({ route }: any) {
           let iconName: any = 'home';
           if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
           else if (route.name === 'Coverage') iconName = focused ? 'shield-checkmark' : 'shield-checkmark-outline';
-          else if (route.name === 'Wallet') iconName = focused ? 'wallet' : 'wallet-outline';
+          else if (route.name === 'Passbook') iconName = focused ? 'book' : 'book-outline';
           else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
           
           return <Ionicons name={iconName} size={24} color={color} />;
@@ -90,7 +90,7 @@ function MainTabs({ route }: any) {
         initialParams={route.params}
       />
       <Tab.Screen name="Coverage" component={CoverageScreen} initialParams={route.params} />
-      <Tab.Screen name="Wallet" component={WalletScreen} />
+      <Tab.Screen name="Passbook" component={WalletScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
