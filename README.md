@@ -6,13 +6,13 @@ This repository holds the entire platform logic, from the sophisticated Machine 
 
 ---
 
-## 📚 Developer Guides & Documentation
+##  Developer Guides & Documentation
 
 To deeply understand the core architecture of the codebase, please review our extensive documentation. **Start with the Project Report.**
 
-- 🏆 **[Project Report](./Docs/Project_Report.md)**: The comprehensive summary of the GigGuard platform, architecture, actuarial models, and business viability.
-- 🏗️ **[Master Architecture Guide](./Docs/devGuide/Master_Architecture.md)**: Understand how the React Native App, FastAPI Backend, and ML Model interact in real-time.
-- 🧠 **[ML Engine & Analytics Guide](./Docs/devGuide/ML_Engine_Guide.md)**: Deep dive into the custom Actuarial math, dynamic pricing logic, and the 6 heuristic disruption triggers.
+-  **[Project Report](./Docs/Project_Report.md)**: The comprehensive summary of the GigGuard platform, architecture, actuarial models, and business viability.
+-  **[Master Architecture Guide](./Docs/devGuide/Master_Architecture.md)**: Understand how the React Native App, FastAPI Backend, and ML Model interact in real-time.
+-  **[ML Engine & Analytics Guide](./Docs/devGuide/ML_Engine_Guide.md)**: Deep dive into the custom Actuarial math, dynamic pricing logic, and the 6 heuristic disruption triggers.
 - 📊 **[ML Model Analysis](./Docs/devGuide/ML_Model_Analysis_GigGuard_v2.md)**: Analysis of our XGBoost model performance (R² = 0.8773) and feature engineering.
 - 🌐 **[Backend API Reference](./Docs/devGuide/Backend_API_Reference.md)**: FastAPI endpoints, Firebase synchronization, payout simulations, and MongoDB user architecture.
 - 📱 **[Mobile App Guide](./Docs/devGuide/MobileApp_Guide.md)**: Details on the React Native Expo frontend, UI component tree, and custom animations.
@@ -21,7 +21,11 @@ To deeply understand the core architecture of the codebase, please review our ex
 
 ## 🚀 Quick Start (Running Locally)
 
-**For Judges:** The Mobile App is pre-configured to connect to our live production AI model and database hosted on Render (`https://gigguard-4u5z.onrender.com`). **You only need to run the Mobile App to fully test the platform.** We have provided the backend code for full transparency.
+**For Judges: 📲 Instant Live Testing**
+We have provided a direct, pre-built Android APK link so you can test the application live on your phone without installing any SDKs or development environments:
+👉 **[Download the GigGuard Android APK Here](https://expo.dev/accounts/geek_aditya/projects/gigguard/builds/9da35338-6468-4205-842a-5bf486f62edb)**
+
+Alternatively, if you wish to run the code manually, the Mobile App is pre-configured to connect to our live production AI model and database hosted on Render (`https://gigguard-4u5z.onrender.com`). **You only need to run the Mobile App locally to fully test the platform.** We have provided the backend code for full transparency.
 
 ### 1. The React Native Mobile App (Required)
 ```bash
