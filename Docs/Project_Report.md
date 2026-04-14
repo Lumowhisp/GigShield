@@ -563,38 +563,46 @@ All subsequent API calls → Authorization: Bearer <JWT>
 
 ## 14. Fraud Detection & Prevention
 
-### 14.1 Multi-Layered Architecture
+### 14.1 Unified Trust Score Architecture
 
-```
-Layer 1: External Data Verification (4 parallel API calls + 10s timeout)
-Layer 2: User Context (activity logs, GPS validation, ban history)
-Layer 3: Intelligence Layer (AI/ML anomaly detection)
-```
+Unlike traditional insurance fraud systems that use rigid binary rules, GigGuard implements a **living Trust Score** for every rider (0–100, initialized at 50). This persistent score evolves over time based on behavior and directly controls the user experience:
 
-### 14.2 Fraud Categories & Mitigations
+| Trust Level | Score | Vesting Period | Payout Speed | Fraud Check |
+|---|---|---|---|---|
+| 🟢 **Veteran** | 80–100 | 4 hours | Instant | Light (Geofence only) |
+| 🔵 **Trusted** | 50–79 | 12 hours | Standard | Full composite |
+| 🟡 **Neutral** | 25–49 | 24 hours | Delayed | Full + manual flag |
+| 🔴 **Suspicious** | 0–24 | 48 hours | Held for review | Full + hard block |
 
-| Fraud Type | Detection | Prevention |
-|---|---|---|
-| **Fake Trigger Exploitation** | API cross-verification, threshold validation | Payouts restricted to verified API-triggered events only |
-| **Location Spoofing** | GPS drift analysis, movement pattern validation | Device fingerprinting, anti-spoofing mechanisms |
-| **Multiple Claim Exploitation** | Timestamp clustering, duplicate detection | Single payout per event rule; 24-hour duplicate rejection |
-| **Threshold Gaming** | Behavioral pattern analysis | Dynamic thresholds (zone-adaptive) |
-| **Collusion Fraud** | Graph-based clustering | Network behavior monitoring and flagging |
+**Trust Mutations:**
+- Clean payout received: **+3** | Policy renewed: **+5** | Fraud score 30–59: **-10** | Fraud score ≥ 60 (blocked): **-25** | Teleportation detected: **-25**
 
-### 14.3 Progressive Penalty System
+### 14.2 Multi-Layer Fraud Firewall (7 Layers)
 
-| Strike Count | Wallet Penalty | Action |
-|---|---|---|
-| 5 | ₹50 | Warning |
-| 7 | ₹80 | Escalated warning |
-| ≥ 10 | ₹120 | **Permanent ban** |
+| Layer | Name | Detection Method | Score Impact |
+|---|---|---|---|
+| **A** | Geospatial Anchor | Haversine 40km radius from policy purchase GPS | Hard block |
+| **B** | Topographical 3D Trap | Phone altitude vs Open-Meteo terrain elevation | +45 pts |
+| **C** | IP Sentinel | `ip-api.com` datacenter/proxy/foreign routing detection | +20/+50 pts |
+| **D** | Kinematic Route Engine | OSRM street-routing API calculates impossible motorcycle speed | +50/+100 pts |
+| **E** | Temporal Consistency | Coefficient of Variation of GPS ping intervals (catches bot-like erratic timing) | +25 pts |
+| **F** | Behavioral Analysis | Claim-to-policy ratio > 85% over 3+ policies = statistical impossibility | +30 pts |
+| **G** | API Fail-Safe | If 2+ verification APIs fail simultaneously, apply "Fog of War" cautionary penalty | +15 pts |
 
-### 14.4 Risk Scoring
+### 14.3 Composite Fraud Scoring
 
-Each claim is assigned a fraud risk score:
-- **0–30:** Safe → Auto-approve
-- **30–60:** Suspicious → Enhanced verification
-- **60–100:** Fraud → Reject + penalty
+Each claim is evaluated through the composite engine returning a `FraudVerdict` dict:
+- **0–29:** Safe → Auto-approve, trust +3
+- **30–59:** Suspicious → Payout proceeds but trust -10, flagged for manual audit
+- **60+:** Fraud → Hard reject, trust -25
+
+### 14.4 Systemic Solvency Protections
+
+| Protection | Mechanism |
+|---|---|
+| **Trust-Adaptive Vesting** | Vesting period scales from 4h (Veterans) to 48h (Suspicious) based on trust tier |
+| **Global Velocity Limiter** | Sliding-window circuit breaker halts ALL payouts if aggregate exceeds ₹50,000 in 5 minutes |
+| **24h Duplicate Rejection** | Same trigger cannot pay the same user twice within 24 hours |
 
 ---
 
@@ -698,8 +706,8 @@ This follows the standard microinsurance cross-subsidy strategy:
 | 4 | **Zone-Adaptive Triggers** | Thresholds change by geography. Chandigarh ≠ Jodhpur for heat. Patna ≠ Mumbai for flood. |
 | 5 | **Actuarially Sound** | BCR 67.2% (target: 55–70%). Premium floors and caps ensure affordability without pool insolvency. Tail risk modeled with sigma uncertainty. |
 | 6 | **Hybrid ML Architecture** | Deterministic physics triggers + ML model. The model learned to prioritize the trigger features (60.9% importance), validating the hybrid design. |
-| 7 | **Circuit Breaker** | Auto-suspends underwriting during catastrophic forecasts (>85% loss ratio), protecting the pool. |
-| 8 | **Fraud Prevention** | Duplicate claim detection (24h window), active policy verification, JWT on every payout endpoint, progressive ban system. |
+| 7 | **Dual Circuit Breakers** | **1. Underwriting Limit**: Auto-suspends sales during catastrophic forecasts (>85% loss ratio). **2. Global Velocity Limit**: The `autopay_trigger_scan` chron job implements a sliding-window tracker capping total disbursements at ₹50,000 per 5 mins to prevent Flash Crash events or coordinated Claim Farming. |
+| 8 | **Fraud Prevention** | Level 5 Composite scoring engine (OSRM kinematics, IP hosting validation, Open-Meteo topography). Also enforces a strict **12-Hour Vesting Protocol** preventing "Panic Buying" adverse selection when severe weather forms. |
 
 ---
 

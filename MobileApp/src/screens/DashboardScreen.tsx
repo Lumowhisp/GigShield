@@ -11,7 +11,8 @@ import CityAlertsFeed from '../components/CityAlertsFeed';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { PremiumResponse, TriggerInfo, UserProfile } from '../services/api';
-import { fetchUserProfile, simulatePayout } from '../services/api';
+import { fetchUserProfile, simulatePayout, updateUserLocation, registerPushToken } from '../services/api';
+import * as Location from 'expo-location';
 import GigBotModal from '../components/GigBotModal';
 import type { RootStackParamList, BottomTabParamList } from '../../App';
 
@@ -77,6 +78,43 @@ export default function DashboardScreen({ route, navigation }: Props) {
       .then(setProfile)
       .catch((err: any) => console.error("Profile fetch failed", err));
 
+    // Sync user GPS location to backend for autopay scheduler
+    (async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          await updateUserLocation(loc.coords.latitude, loc.coords.longitude, loc.coords.altitude || 0);
+          console.log('📍 Location synced for autopay:', loc.coords.latitude.toFixed(4), loc.coords.longitude.toFixed(4));
+        }
+      } catch (e) {
+        console.warn('Location sync failed:', e);
+      }
+    })();
+
+    // Register Expo push token for autopay notifications (Skip in Expo Go for SDK 53+)
+    (async () => {
+      try {
+        const { default: Constants } = await import('expo-constants');
+        
+        // Expo Go SDK 53+ no longer supports remote push notifications
+        if (Constants.appOwnership === 'expo') {
+          console.log('🔔 Running in Expo Go: Skipping push token registration (not supported in SDK 53+)');
+          return;
+        }
+
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+        if (projectId) {
+          const { getExpoPushTokenAsync } = await import('expo-notifications');
+          const tokenData = await getExpoPushTokenAsync({ projectId });
+          await registerPushToken(tokenData.data);
+          console.log('🔔 Push token registered:', tokenData.data.slice(0, 30) + '...');
+        }
+      } catch (e) {
+        console.warn('Push token registration skipped:', e);
+      }
+    })();
+
     // Start hero glow animation
     Animated.loop(
       Animated.sequence([
@@ -107,9 +145,13 @@ export default function DashboardScreen({ route, navigation }: Props) {
   };
 
   const daysRemaining = getDaysRemaining();
+  const isExpired = daysRemaining !== null && daysRemaining === 0;
 
   const getGreetingData = () => {
     const name = profile?.name?.split(' ')[0] || 'Rider';
+    if (isExpired) {
+      return { name, msg: '⚠️ Your coverage has expired. Renew to stay protected.' };
+    }
     return { name, msg: 'You\'re protected. Let\'s keep earning.' };
   };
 
@@ -216,10 +258,35 @@ export default function DashboardScreen({ route, navigation }: Props) {
 
           <View style={styles.greetingHeader}>
             <Text style={styles.greetingText}>
-              Hey <Text style={{ color: colors.aqua }}>{greeting.name}</Text>,
+              Hey <Text style={{ color: isExpired ? colors.danger : colors.aqua }}>{greeting.name}</Text>,
             </Text>
-            <Text style={styles.greetingMsg}>{greeting.msg}</Text>
+            <Text style={[styles.greetingMsg, isExpired && { color: colors.danger }]}>{greeting.msg}</Text>
           </View>
+
+          {/* ── Expiry Alert Banner ── */}
+          {isExpired && (
+            <TouchableOpacity
+              style={styles.expiryBanner}
+              activeOpacity={0.85}
+              onPress={() => (navigation as any).navigate('PlanSelection', { premiumData })}
+            >
+              <View style={styles.expiryBannerContent}>
+                <View style={styles.expiryIconCircle}>
+                  <Ionicons name="alert-circle" size={28} color={colors.danger} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={styles.expiryBannerTitle}>Coverage Expired</Text>
+                  <Text style={styles.expiryBannerDesc}>
+                    Your {activePlan} plan has ended. You are no longer protected against weather disruptions.
+                  </Text>
+                </View>
+                <View style={styles.renewBadge}>
+                  <Text style={styles.renewBadgeText}>RENEW</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#FFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* ── Hero: Active plan banner ── */}
           <Animated.View style={[
@@ -249,9 +316,9 @@ export default function DashboardScreen({ route, navigation }: Props) {
                   {planDetails.label.toUpperCase()} PLAN
                 </Text>
               </View>
-              <View style={[styles.activeBadge, { backgroundColor: planColor }]}>
+              <View style={[styles.activeBadge, { backgroundColor: isExpired ? colors.danger : planColor }]}>
                 <Text style={styles.activeBadgeText}>
-                  {daysRemaining !== null ? `EXP. IN ${daysRemaining} DAYS` : '● LIVE'}
+                  {isExpired ? 'EXPIRED' : daysRemaining !== null ? `EXP. IN ${daysRemaining} DAYS` : '● LIVE'}
                 </Text>
               </View>
             </View>
@@ -776,5 +843,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(94,234,212,0.5)',
+  },
+  
+  // Expiry Banner
+  expiryBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: borderRadius.xl,
+    padding: 2,
+    marginBottom: spacing.xxl,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  expiryBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.bgCard,
+    borderRadius: borderRadius.xl - 2,
+  },
+  expiryIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  expiryBannerTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    color: colors.danger,
+    marginBottom: 4,
+  },
+  expiryBannerDesc: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    paddingRight: 10,
+  },
+  renewBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.danger,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: borderRadius.full,
+    gap: 4,
+  },
+  renewBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 0.5,
   },
 });

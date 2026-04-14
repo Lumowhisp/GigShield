@@ -18,8 +18,11 @@ import { fetchUserProfile, updateUserProfile, UserProfile } from '../services/ap
 import type { RouteProp } from '@react-navigation/native';
 import type { PremiumResponse, TriggerInfo } from '../services/api';
 
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
 type Props = {
   route: any;
+  navigation: NativeStackNavigationProp<any>;
 };
 
 const PLAN_COLORS: Record<string, string> = {
@@ -36,7 +39,7 @@ const DISRUPTION_LOTTIES: Record<string, string> = {
   poor_visibility: 'https://lottie.host/cfbbb843-09e6-4207-aebb-4d120df152e2/YEIHwn6glE.lottie',
 };
 
-export default function CoverageScreen({ route }: Props) {
+export default function CoverageScreen({ route, navigation }: Props) {
   const { premiumData, activePlan } = route.params || {};
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,6 +78,7 @@ export default function CoverageScreen({ route }: Props) {
   };
 
   const daysRemaining = getDaysRemaining();
+  const isExpired = daysRemaining !== null && daysRemaining === 0;
 
   return (
     <View style={styles.container}>
@@ -89,39 +93,61 @@ export default function CoverageScreen({ route }: Props) {
             <View style={styles.planCardHeader}>
               <View>
                 <Text style={styles.planLabel}>ACTIVE PLAN</Text>
-                <Text style={[styles.planName, { color: planColor }]}>
+                <Text style={[styles.planName, { color: isExpired ? colors.danger : planColor }]}>
                   {planDetails.label.toUpperCase()}
                 </Text>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: planColor }]}>
+              <View style={[styles.statusBadge, { backgroundColor: isExpired ? colors.danger : planColor }]}>
                 <Text style={styles.statusText}>
-                  {daysRemaining !== null ? `${daysRemaining}d LEFT` : '● LIVE'}
+                  {isExpired ? 'EXPIRED' : daysRemaining !== null ? `${daysRemaining}d LEFT` : '● LIVE'}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.statsGrid}>
-              <View style={styles.statBox}>
-                <Text style={styles.statIcon}>🛡️</Text>
-                <Text style={styles.statValue}>{planDetails.coverage_pct}%</Text>
-                <Text style={styles.statLabel}>Coverage</Text>
+            {isExpired ? (
+              <View style={styles.expiredState}>
+                <View style={styles.expiredAlert}>
+                  <Ionicons name="warning" size={24} color={colors.danger} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.expiredTitle}>Coverage Ended</Text>
+                    <Text style={styles.expiredDesc}>
+                      Your protection against weather disruptions has expired.
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.renewButton}
+                  activeOpacity={0.8}
+                  onPress={() => navigation.navigate('PlanSelection', { premiumData })}
+                >
+                  <Text style={styles.renewButtonText}>Renew Coverage Now</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFF" />
+                </TouchableOpacity>
               </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statIcon}>💰</Text>
-                <Text style={styles.statValue}>₹{Math.round(planDetails.weekly_premium_inr)}</Text>
-                <Text style={styles.statLabel}>Premium/wk</Text>
+            ) : (
+              <View style={styles.statsGrid}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statIcon}>🛡️</Text>
+                  <Text style={styles.statValue}>{planDetails.coverage_pct}%</Text>
+                  <Text style={styles.statLabel}>Coverage</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statIcon}>💰</Text>
+                  <Text style={styles.statValue}>₹{Math.round(planDetails.weekly_premium_inr)}</Text>
+                  <Text style={styles.statLabel}>Premium/wk</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statIcon}>⚡</Text>
+                  <Text style={styles.statValue}>Instant</Text>
+                  <Text style={styles.statLabel}>Settlement</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={styles.statIcon}>💸</Text>
+                  <Text style={styles.statValue}>₹{Math.round(planDetails.max_weekly_payout_inr)}</Text>
+                  <Text style={styles.statLabel}>Max Payout</Text>
+                </View>
               </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statIcon}>⚡</Text>
-                <Text style={styles.statValue}>Instant</Text>
-                <Text style={styles.statLabel}>Settlement</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statIcon}>💸</Text>
-                <Text style={styles.statValue}>₹{Math.round(planDetails.max_weekly_payout_inr)}</Text>
-                <Text style={styles.statLabel}>Max Payout</Text>
-              </View>
-            </View>
+            )}
           </View>
 
           {/* ── Coverage Window (COMMENTED OUT) ──
@@ -655,4 +681,43 @@ const styles = StyleSheet.create({
   // Model
   modelInfo: { alignItems: 'center', paddingVertical: spacing.lg },
   modelInfoText: { fontSize: 10, color: colors.textMuted, letterSpacing: 0.5 },
+
+  // Expired State
+  expiredState: {
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  expiredAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  expiredTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    color: colors.danger,
+    marginBottom: 4,
+  },
+  expiredDesc: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  renewButton: {
+    backgroundColor: colors.danger,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: borderRadius.md,
+    gap: 8,
+  },
+  renewButtonText: {
+    color: '#FFF',
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+  },
 });

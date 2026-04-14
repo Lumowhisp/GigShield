@@ -5,7 +5,8 @@
 
 import Constants from 'expo-constants';
 
-const BASE_URL = 'https://gigshield-4u5z.onrender.com';
+const BASE_URL = 'https://gigshield-4u5z.onrender.com'; // Production/Render
+// const BASE_URL = 'http://10.251.230.37:8000'; // Local Testing
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -303,7 +304,15 @@ export async function updateUserProfile(data: any): Promise<any> {
   return response.json();
 }
 
-export async function purchasePolicy(tier: string, premium: number): Promise<any> {
+export async function purchasePolicy(
+  tier: string,
+  premium: number,
+  latitude: number,
+  longitude: number,
+  razorpayOrderId?: string,
+  razorpayPaymentId?: string,
+  razorpaySignature?: string
+): Promise<any> {
   const token = await getToken();
   if (!token) throw new Error('Not authenticated');
 
@@ -313,12 +322,50 @@ export async function purchasePolicy(tier: string, premium: number): Promise<any
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ tier, premium_paid: premium }),
+    body: JSON.stringify({
+      tier,
+      premium_paid: premium,
+      latitude,
+      longitude,
+      razorpay_order_id: razorpayOrderId,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature: razorpaySignature,
+    }),
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Purchase failed');
+  }
+
+  return response.json();
+}
+
+/**
+ * Create a Razorpay Sandbox order for premium payment
+ */
+export async function createRazorpayOrder(tier: string, amount: number): Promise<{
+  order_id: string;
+  amount: number;
+  amount_paise: number;
+  currency: string;
+  key_id: string;
+}> {
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${BASE_URL}/policy/order`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ tier, amount }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Order creation failed');
   }
 
   return response.json();
@@ -344,6 +391,47 @@ export async function simulatePayout(amount: number, triggerName: string): Promi
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Payout simulation failed');
   }
+
+  return response.json();
+}
+
+/**
+ * Register Expo push token for autopay notifications
+ */
+export async function registerPushToken(expoPushToken: string): Promise<any> {
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${BASE_URL}/user/push-token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ expo_push_token: expoPushToken }),
+  });
+
+  if (!response.ok) {
+    console.warn('Push token registration failed');
+  }
+  return response.json();
+}
+
+/**
+ * Update user's GPS location for autopay trigger scanning
+ */
+export async function updateUserLocation(latitude: number, longitude: number, altitude: number = 0): Promise<any> {
+  const token = await getToken();
+  if (!token) return;
+
+  const response = await fetch(`${BASE_URL}/user/location`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ latitude, longitude, altitude }),
+  });
 
   return response.json();
 }

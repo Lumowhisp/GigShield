@@ -11,14 +11,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '../theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { PremiumResponse } from '../services/api';
-import { purchasePolicy } from '../services/api';
+import { purchasePolicy, createRazorpayOrder, BASE_URL } from '../services/api';
 import type { RootStackParamList } from '../../App';
+import * as WebBrowser from 'expo-web-browser';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Payment'>;
@@ -85,6 +88,9 @@ export default function PaymentScreen({ navigation, route }: Props) {
   const [cardCvv, setCardCvv] = useState('');
   const [cardName, setCardName] = useState('');
   const [processingStep, setProcessingStep] = useState(0);
+  const [razorpayOrderId, setRazorpayOrderId] = useState<string | null>(null);
+  const [razorpayPaymentId, setRazorpayPaymentId] = useState<string | null>(null);
+  const [razorpaySignature, setRazorpaySignature] = useState<string | null>(null);
 
   // ─── Animations ──────────────────────────────────────────────────────
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -127,17 +133,26 @@ export default function PaymentScreen({ navigation, route }: Props) {
         }).start();
       } else {
         clearInterval(stepInterval);
-        
-        // Finalize policy in background
+
+        // Finalize policy in background with Razorpay details if available
         const premiumAmt = premiumData.plans[activePlan as keyof typeof premiumData.plans].weekly_premium_inr;
         try {
-          await purchasePolicy(activePlan, premiumAmt);
+          await purchasePolicy(
+            activePlan,
+            premiumAmt,
+            premiumData.latitude,
+            premiumData.longitude,
+            razorpayOrderId || undefined,
+            razorpayPaymentId || undefined,
+            razorpaySignature || undefined,
+          );
           pulse.stop();
           triggerSuccess();
         } catch (error) {
           console.error("Policy Purchase Failed:", error);
           pulse.stop();
           setStage('checkout'); // Fallback if API fails
+          Alert.alert('Purchase Failed', 'Could not activate coverage. Please try again.');
         }
       }
     }, 900);
@@ -164,10 +179,49 @@ export default function PaymentScreen({ navigation, route }: Props) {
     }, 2200);
   };
 
-  const handlePay = () => {
-    setProcessingStep(0);
-    progressAnim.setValue(1 / PROCESSING_STEPS.length);
-    setStage('processing');
+  const handlePay = async () => {
+    const planPrice = premiumData.plans[activePlan as keyof typeof premiumData.plans].weekly_premium_inr;
+    const totalAmount = Math.round(planPrice * 1.18); // Including GST
+
+    try {
+      // Step 1: Create Razorpay order on backend
+      const orderResponse = await createRazorpayOrder(activePlan, totalAmount);
+
+      // Step 2: Open Razorpay checkout in system browser
+      const checkoutUrl = `${BASE_URL}/razorpay/checkout?order_id=${orderResponse.order_id}&key_id=${orderResponse.key_id}&amount=${orderResponse.amount_paise}&plan=${activePlan}`;
+
+      const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
+        dismissButtonStyle: 'cancel',
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      });
+
+      // Step 3: After browser closes, proceed with policy activation
+      // Store Razorpay order details for verification
+      setRazorpayOrderId(orderResponse.order_id);
+
+      // In sandbox mode, move to processing stage
+      setProcessingStep(0);
+      progressAnim.setValue(1 / PROCESSING_STEPS.length);
+      setStage('processing');
+
+    } catch (error: any) {
+      console.error('Razorpay order failed:', error);
+      // Fallback: proceed without Razorpay (backward compat)
+      Alert.alert(
+        'Gateway Unavailable',
+        'Razorpay is unavailable. Proceeding with demo payment.',
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              setProcessingStep(0);
+              progressAnim.setValue(1 / PROCESSING_STEPS.length);
+              setStage('processing');
+            },
+          },
+        ]
+      );
+    }
   };
 
   // ─── Helpers ─────────────────────────────────────────────────────────
@@ -510,7 +564,7 @@ export default function PaymentScreen({ navigation, route }: Props) {
           {/* Hackathon note */}
           <View style={styles.hackBadge}>
             <Ionicons name="information-circle-outline" size={12} color={colors.orange} />
-            <Text style={styles.hackText}>HACKATHON DEMO · No real transaction occurs</Text>
+            <Text style={styles.hackText}>RAZORPAY SANDBOX · Test payment gateway active</Text>
           </View>
 
         </Animated.View>

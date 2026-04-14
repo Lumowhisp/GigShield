@@ -38,6 +38,13 @@
           "locationWhenInUsePermission": "GigGuard needs your location to calculate zone-specific insurance premiums based on local weather risk."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/logoFinal.png",
+          "color": "#F59E0B"
+        }
+      ],
       "expo-asset",
       "expo-web-browser",
       "@react-native-community/datetimepicker",

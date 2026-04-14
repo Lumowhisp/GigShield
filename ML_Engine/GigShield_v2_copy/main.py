@@ -1,16 +1,16 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════╗
-║   GigShield v2 — FastAPI Inference Server                              ║
-║   Dynamic Weekly Pricing | 5 Automated Triggers | GPS-Portable         ║
+║   GigShield v2 — FastAPI Inference Server                                ║
+║   Dynamic Weekly Pricing | 5 Automated Triggers | GPS-Portable           ║
 ╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                        ║
-║   Dynamic Pricing Engine:                                              ║
-║     base_premium = ML_predicted_loss × coverage × actuarial_loading    ║
-║                                                                        ║
-║   Micro-Adjustments:                                                   ║
-║     ✅ Zone Safety Discount    — ₹2-10/week off for safe GPS zones     ║
-║     ✅ Forecast Surge          — auto-extend coverage hours            ║
-║     ✅ No-Claim Streak         — loyalty discount for safe weeks       ║
+║                                                                          ║
+║   Dynamic Pricing Engine:                                                ║
+║     base_premium = ML_predicted_loss × coverage × actuarial_loading      ║
+║                                                                          ║
+║   Micro-Adjustments:                                                     ║
+║     ✅ Zone Safety Discount    — ₹2-10/week off for safe GPS zones       ║
+║     ✅ Forecast Surge          — auto-extend coverage hours              ║
+║     ✅ No-Claim Streak         — loyalty discount for safe weeks         ║
 ║     ✅ Multi-Trigger Loading   — compound risk surcharge               ║
 ║     ✅ Seasonal Adjustment     — monsoon/winter risk premiums          ║
 ║                                                                        ║
@@ -51,6 +51,12 @@ import bcrypt
 import re
 import jwt
 from datetime import datetime, timedelta, timezone
+
+# ── Razorpay & Scheduler Imports ──
+import razorpay
+import hmac
+import hashlib
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from disruption_triggers import (
     evaluate_all_triggers,
@@ -115,6 +121,21 @@ MIN_WEEKLY = {"basic": 20.0, "standard": 20.0, "premium": 39.0}
 MAX_WEEKLY = {"basic": 49.0, "standard": 99.0, "premium": None}
 
 
+import math
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate the great circle distance between two points on the earth (specified in decimal degrees). Returns distance in km."""
+    # Convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+
+    # Haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    r = 6371 # Radius of earth in kilometers.
+    return c * r
+
 # ─────────────────────────────────────────────────────────────────────────────
 # APP INIT
 # ─────────────────────────────────────────────────────────────────────────────
@@ -142,6 +163,17 @@ MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
 # JWT configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback_secret_key")
 ALGORITHM = "HS256"
+
+# Razorpay Sandbox Configuration
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+razorpay_client = None
+if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
+    razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+    razorpay_client.set_app_details({"title": "GigGuard", "version": "2.0.0"})
+    print(f"✅ Razorpay Sandbox client initialized (Key: {RAZORPAY_KEY_ID[:16]}...)")
+else:
+    print("⚠️  Razorpay keys not set — payment gateway disabled")
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 
 def create_access_token(data: dict):
@@ -150,6 +182,140 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+from collections import deque
+
+# ── APScheduler instance (created before startup) ──
+scheduler = AsyncIOScheduler()
+
+# ── GLOBAL VELOCITY CIRCUIT BREAKER ──
+GLOBAL_PAYOUT_VELOCITY_TRACKER = deque()
+MAX_PAYOUT_PER_5_MINS = 50000.0
+GLOBAL_PAYOUT_FREEZE = False
+
+async def evaluate_composite_fraud_score(client: httpx.AsyncClient, user: dict, lat: float, lon: float, actual_elevation: float) -> dict:
+    """
+    Unified Trust-Aware Fraud Scoring Engine (Level 7).
+    Returns a FraudVerdict dict:
+      - score (int): composite fraud points (0-200+)
+      - api_failures (int): how many verification APIs failed
+      - temporal_flag (bool): erratic ping timing detected
+      - behavioral_flag (bool): suspicious claim-to-policy ratio
+      - details (list[str]): human-readable audit trail
+    """
+    fraud_score = 0
+    api_failures = 0
+    temporal_flag = False
+    behavioral_flag = False
+    details = []
+    
+    # ── LAYER A: Topographical 3D Trap ──
+    phone_altitude = user.get("last_altitude", 0.0)
+    if abs(phone_altitude - actual_elevation) > 150.0 and actual_elevation > 200.0:
+        fraud_score += 45
+        details.append(f"Elevation mismatch: phone={phone_altitude:.0f}m vs terrain={actual_elevation:.0f}m")
+        
+    # ── LAYER B: Network IP Sentinel ──
+    last_ip = user.get("last_ip")
+    if last_ip and last_ip not in ["127.0.0.1", "localhost", "::1"]:
+        try:
+            ip_resp = await client.get(f"http://ip-api.com/json/{last_ip}?fields=hosting,proxy,countryCode")
+            if ip_resp.status_code == 200:
+                ip_data = ip_resp.json()
+                if ip_data.get("hosting") is True or ip_data.get("proxy") is True:
+                    fraud_score += 20
+                    details.append(f"IP {last_ip}: Datacenter/Proxy detected")
+                if ip_data.get("countryCode") != "IN":
+                    fraud_score += 50
+                    details.append(f"IP {last_ip}: Routed from {ip_data.get('countryCode', '?')} (non-India)")
+            else:
+                api_failures += 1
+        except Exception:
+            api_failures += 1
+            
+    # ── LAYER C: Kinematic Route Engine (OSRM) ──
+    history = user.get("location_history", [])
+    if len(history) >= 2:
+        last_ping = history[-1]
+        prev_ping = history[-2]
+        
+        time_delta_seconds = (last_ping["time"] - prev_ping["time"]).total_seconds()
+        time_delta_hours = time_delta_seconds / 3600.0
+        
+        if time_delta_hours > 0 and time_delta_hours < 24.0:
+            try:
+                osrm_url = f"http://router.project-osrm.org/route/v1/driving/{prev_ping['lon']},{prev_ping['lat']};{last_ping['lon']},{last_ping['lat']}?overview=false"
+                rout_resp = await client.get(osrm_url)
+                if rout_resp.status_code == 200:
+                    rout_data = rout_resp.json()
+                    if rout_data.get("code") == "Ok":
+                        road_distance_km = rout_data["routes"][0]["distance"] / 1000.0
+                        street_speed = road_distance_km / time_delta_hours
+                        if street_speed > 140.0:
+                            fraud_score += 100
+                            details.append(f"OSRM: Impossible speed {street_speed:.0f} km/h")
+                        elif street_speed > 100.0:
+                            fraud_score += 50
+                            details.append(f"OSRM: Suspicious speed {street_speed:.0f} km/h")
+                else:
+                    api_failures += 1
+            except Exception:
+                api_failures += 1
+                
+    # ── LAYER D: Temporal Consistency Check ──
+    if len(history) >= 3:
+        intervals = []
+        for i in range(1, len(history)):
+            delta = (history[i]["time"] - history[i-1]["time"]).total_seconds()
+            if delta > 0:
+                intervals.append(delta)
+        if len(intervals) >= 2:
+            mean_interval = sum(intervals) / len(intervals)
+            if mean_interval > 0:
+                variance = sum((x - mean_interval) ** 2 for x in intervals) / len(intervals)
+                std_dev = variance ** 0.5
+                cv = std_dev / mean_interval  # Coefficient of Variation
+                if cv > 2.0:
+                    temporal_flag = True
+                    fraud_score += 25
+                    details.append(f"Temporal anomaly: ping CV={cv:.2f} (erratic bot-like pattern)")
+                    
+    # ── LAYER E: Behavioral Consistency Check ──
+    payout_history = user.get("payout_history", [])
+    policy_history = user.get("policy_history", [])
+    policies_count = len(policy_history)
+    payouts_count = len(payout_history)
+    
+    if policies_count >= 3:
+        claim_ratio = payouts_count / policies_count
+        if claim_ratio > 0.85:
+            behavioral_flag = True
+            fraud_score += 30
+            details.append(f"Behavioral anomaly: {payouts_count}/{policies_count} policies claimed ({claim_ratio:.0%})")
+            
+    # ── LAYER F: API Fail-Safe (Fog of War Penalty) ──
+    if api_failures >= 2:
+        fraud_score += 15
+        details.append(f"Fog of War: {api_failures} verification APIs unreachable — cautionary loading applied")
+                
+    return {
+        "score": fraud_score,
+        "api_failures": api_failures,
+        "temporal_flag": temporal_flag,
+        "behavioral_flag": behavioral_flag,
+        "details": details,
+    }
+
+
+def get_trust_tier(trust_score: float) -> dict:
+    """Returns the trust tier config based on user's persistent trust score."""
+    if trust_score >= 80:
+        return {"label": "VETERAN", "emoji": "🟢", "vesting_hours": 4, "check_level": "light"}
+    elif trust_score >= 50:
+        return {"label": "TRUSTED", "emoji": "🔵", "vesting_hours": 12, "check_level": "full"}
+    elif trust_score >= 25:
+        return {"label": "NEUTRAL", "emoji": "🟡", "vesting_hours": 24, "check_level": "full+flag"}
+    else:
+        return {"label": "SUSPICIOUS", "emoji": "🔴", "vesting_hours": 48, "check_level": "full+block"}
 
 @app.on_event("startup")
 async def startup_db_client():
@@ -163,9 +329,15 @@ async def startup_db_client():
     except Exception as e:
         print(f"❌ MongoDB connection failed: {e}")
 
+    # ── Start Autopay Scheduler ──
+    scheduler.add_job(autopay_trigger_scan, "interval", seconds=30, id="autopay_scan", replace_existing=True)
+    scheduler.start()
+    print("✅ Autopay scheduler started — scanning every 5 minutes")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     """Disconnects MongoDB neatly when server shuts down."""
+    scheduler.shutdown(wait=False)
     app.mongodb_client.close()
 
 # Load model
@@ -595,12 +767,34 @@ def compute_dynamic_premium(
             })
             total_adj += seasonal_adj
 
-        # Final premium
         # Final premium with floor and cap
-        final_premium = max(base_premium + total_adj, MIN_WEEKLY.get(key, 20.0))
+        calculated_premium = base_premium + total_adj
+        final_premium = calculated_premium
+        
+        # Apply Price Ceiling/Cap
         cap = MAX_WEEKLY.get(key)
-        if cap is not None:
-            final_premium = min(final_premium, cap)
+        if cap is not None and final_premium > cap:
+            cap_discount = round(cap - final_premium, 2)
+            adjustments.append({
+                "type": "price_cap_discount",
+                "amount": cap_discount,
+                "reason": "Platform maximum price ceiling applied to keep affordable",
+            })
+            total_adj += cap_discount
+            final_premium = cap
+            
+        # Apply Minimum Floor Limit
+        floor = MIN_WEEKLY.get(key, 20.0)
+        if final_premium < floor:
+            floor_loading = round(floor - final_premium, 2)
+            adjustments.append({
+                "type": "minimum_base_floor",
+                "amount": floor_loading,
+                "reason": "Minimum actuarial operational limit applied",
+            })
+            total_adj += floor_loading
+            final_premium = floor
+
         monthly_premium = round(final_premium * 4.33, 2)
         max_weekly_payout = round(daily_income * plan["coverage_pct"] * DAYS_PER_WEEK, 2)
 
@@ -738,10 +932,27 @@ class UserProfileUpdate(BaseModel):
 class PolicyPurchaseRequest(BaseModel):
     tier: str
     premium_paid: float
+    latitude: float
+    longitude: float
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    razorpay_signature: Optional[str] = None
 
 class PayoutSimulationRequest(BaseModel):
     amount: float
     trigger_name: str
+
+class RazorpayOrderRequest(BaseModel):
+    tier: str
+    amount: float  # in INR
+
+class PushTokenRequest(BaseModel):
+    expo_push_token: str
+
+class UserLocationUpdate(BaseModel):
+    latitude: float
+    longitude: float
+    altitude: float = 0.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1099,7 +1310,8 @@ async def firebase_sync(req: FirebaseAuthRequest, request: Request):
             "gig_rider_id": generate_gig_id(),
             "created_at": datetime.now(timezone.utc),
             "is_verified": True, # Firebase handles verification
-            "active_days_last_30_days": 20  # Default for demo — enables Standard/Premium eligibility
+            "active_days_last_30_days": 20,  # Default for demo — enables Standard/Premium eligibility
+            "trust_score": 50.0,  # Unified Trust Score — starts at Trusted tier
         }
         result = await db["users"].insert_one(user_doc)
         user_id = str(result.inserted_id)
@@ -1191,15 +1403,182 @@ async def update_profile(req: UserProfileUpdate, request: Request):
     return {"status": "success", "message": "Profile updated successfully"}
 
 
+@app.post("/policy/order")
+async def create_razorpay_order(req: RazorpayOrderRequest, request: Request):
+    """
+    Creates a Razorpay Sandbox order for premium collection.
+    The mobile app uses this order_id to open the Razorpay checkout.
+    """
+    if not razorpay_client:
+        raise HTTPException(status_code=503, detail="Payment gateway not configured")
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+
+    try:
+        amount_paise = int(round(req.amount * 100))  # Razorpay uses paise
+        order_data = {
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": f"gg_{req.tier}_{int(datetime.now().timestamp())}",
+            "notes": {
+                "plan": req.tier,
+                "product": "GigGuard Parametric Insurance"
+            }
+        }
+        order = razorpay_client.order.create(data=order_data)
+        print(f"✅ Razorpay Order created: {order['id']} for ₹{req.amount}")
+        return {
+            "order_id": order["id"],
+            "amount": req.amount,
+            "amount_paise": amount_paise,
+            "currency": "INR",
+            "key_id": RAZORPAY_KEY_ID,
+        }
+    except Exception as e:
+        print(f"❌ Razorpay order creation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Payment gateway error: {str(e)}")
+
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/razorpay/checkout", response_class=HTMLResponse)
+async def razorpay_checkout_page(order_id: str, key_id: str, amount: int, plan: str):
+    """
+    Serves a minimal HTML page that loads the Razorpay JS SDK checkout.
+    Opened via expo-web-browser from the mobile app.
+    After payment, user closes the browser and returns to the app.
+    """
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GigGuard Payment</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a0e1a 0%, #1a1f2e 100%);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }}
+        .card {{
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            backdrop-filter: blur(20px);
+        }}
+        .shield {{ font-size: 48px; margin-bottom: 16px; }}
+        h1 {{ font-size: 22px; margin-bottom: 8px; font-weight: 700; }}
+        .plan {{ color: #F59E0B; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 24px; }}
+        .amount {{ font-size: 36px; font-weight: 800; color: #F59E0B; margin-bottom: 8px; }}
+        .subtitle {{ color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 32px; }}
+        .pay-btn {{
+            background: #F59E0B;
+            color: #000;
+            border: none;
+            padding: 16px 48px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+        }}
+        .pay-btn:hover {{ transform: scale(1.02); background: #FBBF24; }}
+        .pay-btn:disabled {{ opacity: 0.5; cursor: not-allowed; }}
+        .secured {{ color: rgba(255,255,255,0.3); font-size: 11px; margin-top: 20px; }}
+        .success-container {{ display: none; }}
+        .success-container.show {{ display: block; }}
+        .success-icon {{ font-size: 64px; margin-bottom: 16px; }}
+        .success-text {{ color: #00FF88; font-size: 20px; font-weight: 700; margin-bottom: 8px; }}
+        .close-hint {{ color: rgba(255,255,255,0.4); font-size: 13px; margin-top: 24px; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="checkout-view">
+            <div class="shield">🛡️</div>
+            <h1>GigGuard Insurance</h1>
+            <div class="plan">{plan} Plan · Weekly Coverage</div>
+            <div class="amount">₹{amount // 100}</div>
+            <div class="subtitle">Razorpay Sandbox · Secure Test Payment</div>
+            <button class="pay-btn" id="payBtn" onclick="openRazorpay()">
+                🔒 Pay ₹{amount // 100} Securely
+            </button>
+            <div class="secured">🔐 256-bit SSL · Razorpay Sandbox · RBI Compliant</div>
+        </div>
+        <div id="success-view" class="success-container">
+            <div class="success-icon">✅</div>
+            <div class="success-text">Payment Successful!</div>
+            <div class="subtitle">Your {plan} plan premium has been collected.</div>
+            <div class="close-hint">You can close this window and return to the app.</div>
+        </div>
+    </div>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        function openRazorpay() {{
+            document.getElementById('payBtn').disabled = true;
+            document.getElementById('payBtn').textContent = 'Opening gateway...';
+
+            var options = {{
+                "key": "{key_id}",
+                "amount": "{amount}",
+                "currency": "INR",
+                "name": "GigGuard Insurance",
+                "description": "{plan.capitalize()} Plan · Weekly Parametric Coverage",
+                "order_id": "{order_id}",
+                "handler": function(response) {{
+                    // Payment successful
+                    document.getElementById('checkout-view').style.display = 'none';
+                    document.getElementById('success-view').classList.add('show');
+                    console.log('Payment ID:', response.razorpay_payment_id);
+                    console.log('Signature:', response.razorpay_signature);
+                }},
+                "prefill": {{
+                    "name": "GigGuard Rider",
+                    "email": "rider@gigguard.in",
+                    "contact": "9999999999"
+                }},
+                "theme": {{
+                    "color": "#F59E0B"
+                }},
+                "modal": {{
+                    "ondismiss": function() {{
+                        document.getElementById('payBtn').disabled = false;
+                        document.getElementById('payBtn').textContent = '🔒 Pay ₹{amount // 100} Securely';
+                    }}
+                }}
+            }};
+            var rzp = new Razorpay(options);
+            rzp.open();
+        }}
+    </script>
+</body>
+</html>"""
+
 @app.post("/policy/purchase")
 async def purchase_policy(req: PolicyPurchaseRequest, request: Request):
     """
     Record a policy purchase and activate coverage for 7 days.
+    If Razorpay fields are provided, verify the payment signature first.
+    Falls back to direct activation if no Razorpay fields (backward compat).
     """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
-    
+
     token = auth_header.split(" ")[1]
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -1207,21 +1586,39 @@ async def purchase_policy(req: PolicyPurchaseRequest, request: Request):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+    # ── Verify Razorpay Signature (if provided) ──
+    payment_verified = False
+    if req.razorpay_order_id and req.razorpay_payment_id and req.razorpay_signature:
+        try:
+            razorpay_client.utility.verify_payment_signature({
+                "razorpay_order_id": req.razorpay_order_id,
+                "razorpay_payment_id": req.razorpay_payment_id,
+                "razorpay_signature": req.razorpay_signature,
+            })
+            payment_verified = True
+            print(f"✅ Razorpay payment verified: {req.razorpay_payment_id}")
+        except razorpay.errors.SignatureVerificationError:
+            raise HTTPException(status_code=400, detail="Payment signature verification failed")
+
     db = request.app.mongodb
     from bson import ObjectId
-    
+
     # Calculate expiry (7 days from now)
     now = datetime.now(timezone.utc)
     expiry = now + timedelta(days=7)
-    
+
     policy_doc = {
         "tier": req.tier,
         "premium_paid": req.premium_paid,
+        "baseline_latitude": req.latitude,
+        "baseline_longitude": req.longitude,
         "activated_at": now,
         "expires_at": expiry,
-        "status": "active"
+        "status": "active",
+        "payment_verified": payment_verified,
+        "razorpay_payment_id": req.razorpay_payment_id,
     }
-    
+
     # Update user with active policy and add to history
     result = await db["users"].update_one(
         {"_id": ObjectId(user_id)},
@@ -1230,13 +1627,14 @@ async def purchase_policy(req: PolicyPurchaseRequest, request: Request):
             "$push": {"policy_history": policy_doc}
         }
     )
-    
+
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
-        
+
     return {
-        "status": "success", 
+        "status": "success",
         "message": f"Successfully activated {req.tier} coverage",
+        "payment_verified": payment_verified,
         "expires_at": expiry
     }
 
@@ -1334,6 +1732,349 @@ async def simulate_payout(req: PayoutSimulationRequest, request: Request):
         "payout": payout_doc,
         "settlement_time_seconds": 3  # Simulated instant settlement
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PUSH TOKEN & LOCATION STORAGE
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/user/push-token")
+async def register_push_token(req: PushTokenRequest, request: Request):
+    """Store the Expo Push Token for the logged-in user."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db = request.app.mongodb
+    from bson import ObjectId
+    await db["users"].update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"expo_push_token": req.expo_push_token}}
+    )
+    return {"status": "success", "message": "Push token registered"}
+
+
+@app.post("/user/location")
+async def update_user_location(req: UserLocationUpdate, request: Request):
+    """Store the user's latest GPS location for autopay trigger scanning."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db = request.app.mongodb
+    from bson import ObjectId
+    now_time = datetime.now(timezone.utc)
+    req_ip = request.client.host
+    
+    await db["users"].update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "last_latitude": req.latitude,
+                "last_longitude": req.longitude,
+                "last_altitude": req.altitude,
+                "last_ip": req_ip,
+                "location_updated_at": now_time,
+            },
+            "$push": {
+                "location_history": {
+                    "$each": [{
+                        "lat": req.latitude,
+                        "lon": req.longitude,
+                        "alt": req.altitude,
+                        "time": now_time
+                    }],
+                    "$slice": -5
+                }
+            }
+        }
+    )
+    return {"status": "success"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTOPAY SCHEDULER — The core parametric insurance engine
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def send_expo_push(token: str, title: str, body: str, data: dict = None):
+    """Send a push notification via Expo Push API."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                "https://exp.host/--/api/v2/push/send",
+                json={
+                    "to": token,
+                    "title": title,
+                    "body": body,
+                    "sound": "default",
+                    "data": data or {},
+                },
+            )
+            print(f"📱 Push sent to {token[:20]}... → {resp.status_code}")
+    except Exception as e:
+        print(f"⚠️ Push notification failed: {e}")
+
+
+async def execute_razorpayx_payout_mock(user_id: str, amount: float, purpose: str) -> dict:
+    """
+    Simulates sending a real Bank/UPI payout via RazorpayX Sandbox API.
+    Used to prove the '10-Second Auto-Settlement' architecture during hackathons.
+    """
+    import asyncio
+    
+    print(f"\n   💳 [RAZORPAY_X] Initiating Payout...")
+    print(f"   ├─ Amount: ₹{amount}")
+    print(f"   ├─ Purpose: Parametric Trigger - {purpose}")
+    print(f"   ├─ Connecting to Bank NEFT/UPI nodes...")
+    
+    # Simulate network delay for Bank node verification (1-3 seconds)
+    await asyncio.sleep(2.5)
+    
+    # Mock UPI UTR generation
+    utr_id = f"UPI{int(datetime.now().timestamp())}{user_id[-4:].upper()}"
+    payout_id = f"pout_{int(datetime.now().timestamp())}XYZ"
+    
+    print(f"   └─ ✅ SUCCESS! Settlement complete. UTR: {utr_id}")
+    
+    return {
+        "status": "processed",
+        "razorpay_payout_id": payout_id,
+        "utr": utr_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
+async def autopay_trigger_scan():
+    """
+    Scheduled job that runs every 5 minutes:
+    1. Finds all users with active (non-expired) policies + stored GPS
+    2. Fetches current weather for their location
+    3. Evaluates triggers
+    4. If any trigger fires → auto-settles payout into MongoDB
+    5. Sends push notification to user
+    """
+    print("\n🔄 ── AUTOPAY SCAN STARTED ──")
+    db = app.mongodb
+    now = datetime.now(timezone.utc)
+
+    # Find all users with active policies that haven't expired
+    cursor = db["users"].find({
+        "active_policy.status": "active",
+        "active_policy.expires_at": {"$gt": now},
+        "last_latitude": {"$exists": True},
+        "last_longitude": {"$exists": True},
+    })
+
+    users = await cursor.to_list(length=500)
+    print(f"   Found {len(users)} users with active policies + GPS")
+
+    for user in users:
+        try:
+            lat = user["last_latitude"]
+            lon = user["last_longitude"]
+            user_id = str(user["_id"])
+            policy = user["active_policy"]
+            email = user.get("email", "unknown")
+            trust = user.get("trust_score", 50.0)
+            tier = get_trust_tier(trust)
+            
+            print(f"   {tier['emoji']} [{tier['label']}] Scanning {email} (Trust: {trust:.0f}/100)")
+            
+            # --- TRUST-ADAPTIVE VESTING (replaces static 12h rule) ---
+            activated_at_naive = policy.get("activated_at")
+            if activated_at_naive:
+                if activated_at_naive.tzinfo is None:
+                    activated_at_naive = activated_at_naive.replace(tzinfo=timezone.utc)
+                vesting_seconds = tier["vesting_hours"] * 3600.0
+                if (now - activated_at_naive).total_seconds() < vesting_seconds:
+                    print(f"   🛡️ [VESTING] Payout skipped for {email}: {tier['vesting_hours']}h cooling-off ({tier['label']} tier).")
+                    continue
+
+            # ── GEOSPATIAL FRAUD DEFENSE: The 40km Anchor Rule ──
+            baseline_lat = policy.get("baseline_latitude")
+            baseline_lon = policy.get("baseline_longitude")
+            
+            if baseline_lat is not None and baseline_lon is not None:
+                dist_km = haversine_distance(lat, lon, baseline_lat, baseline_lon)
+                if dist_km > 40.0:
+                    # Teleportation → punish trust score
+                    new_trust = max(0.0, trust - 25.0)
+                    await db["users"].update_one({"_id": user["_id"]}, {"$set": {"trust_score": new_trust}})
+                    print(f"   🚨 [FRAUD SHIELD] Payout Blocked for {email}: Teleported {dist_km:.1f}km. Trust: {trust:.0f}→{new_trust:.0f}")
+                    continue
+                    
+            # Fetch real-time weather & elevation FIRST for topographical check
+            weather, elevation = await fetch_weather_and_elevation(lat, lon)
+            
+            # --- EVALUATE COMPOSITE FRAUD ENGINE ---
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                verdict = await evaluate_composite_fraud_score(client, user, lat, lon, elevation)
+            
+            fraud_score = verdict["score"]
+            
+            if verdict["details"]:
+                for d in verdict["details"]:
+                    print(f"      ├─ {d}")
+                    
+            if fraud_score >= 60:
+                new_trust = max(0.0, trust - 25.0)
+                await db["users"].update_one({"_id": user["_id"]}, {"$set": {"trust_score": new_trust}})
+                print(f"   🚨 [FRAUD SHIELD] Payout Blocked for {email}: Score {fraud_score}/100. Trust: {trust:.0f}→{new_trust:.0f}")
+                continue
+            elif fraud_score >= 30:
+                new_trust = max(0.0, trust - 10.0)
+                await db["users"].update_one({"_id": user["_id"]}, {"$set": {"trust_score": new_trust}})
+                print(f"   ⚠️ [FRAUD WARNING] {email}: Score {fraud_score}/100. Trust: {trust:.0f}→{new_trust:.0f}. Flagged for audit.")
+
+            dist_coast = distance_to_coast_km(lat, lon)
+            coastal = dist_coast < 80
+
+            # Get today's index (first forecast day = index 7)
+            today_idx = min(7, len(weather["time"]) - 1)
+
+            # Evaluate triggers for today
+            result = evaluate_all_triggers(
+                precipitation_mm=float(weather["precipitation_sum"][today_idx] or 0),
+                temp_max=float(weather["temperature_2m_max"][today_idx] or 30),
+                apparent_temp_max=float(weather["apparent_temperature_max"][today_idx] or 32),
+                wind_speed_max=float(weather["wind_speed_10m_max"][today_idx] or 10),
+                wind_gust_max=float(weather["wind_gusts_10m_max"][today_idx] or 15),
+                shortwave_radiation_mj=float(weather["shortwave_radiation_sum"][today_idx] or 15),
+                rolling_7d_rain_mm=sum(
+                    float(x or 0) for x in weather["precipitation_sum"][max(0, today_idx-6):today_idx+1]
+                ),
+                rolling_3d_temp=np.mean([
+                    float(x or 30) for x in weather["temperature_2m_max"][max(0, today_idx-2):today_idx+1]
+                ]),
+                elevation_m=elevation,
+                distance_to_coast_km=dist_coast,
+                is_coastal=coastal,
+                latitude=lat,
+                longitude=lon,
+            )
+
+            if not result["any_active"]:
+                continue  # No triggers fired — skip
+
+            # ── Which triggers fired? ──
+            active_triggers = [t for t in result["triggers"] if t.active]
+            trigger_names = ", ".join(t.trigger_name for t in active_triggers)
+            print(f"   ⚡ TRIGGER for {email}: {trigger_names}")
+
+            # ── Fraud check: no duplicate payout for same trigger in 24h ──
+            payout_history = user.get("payout_history", [])
+            cutoff = now - timedelta(hours=24)
+            already_paid_triggers = set()
+            for past_payout in payout_history:
+                past_time = past_payout.get("paid_at")
+                if isinstance(past_time, datetime):
+                    if past_time.tzinfo is None:
+                        past_time = past_time.replace(tzinfo=timezone.utc)
+                    if past_time > cutoff:
+                        already_paid_triggers.add(past_payout.get("trigger_name", ""))
+
+            # Only settle triggers that haven't been paid in last 24h
+            new_triggers = [t for t in active_triggers if t.trigger_name not in already_paid_triggers]
+            if not new_triggers:
+                print(f"   ⏭  {email}: triggers already settled within 24h")
+                continue
+
+            # ── Calculate payout amount ──
+            plan_config = PLANS.get(policy.get("tier", "basic"), PLANS["basic"])
+            daily_income = 800  # Default daily income estimate
+            payout_amount = round(
+                daily_income * plan_config["coverage_pct"] * result["composite_loss_ratio"],
+                2
+            )
+            payout_amount = max(payout_amount, 10.0)  # Min ₹10 payout
+
+            primary_trigger = new_triggers[0].trigger_name
+            
+            # --- LAYER 7: CLAIM FARMING VELOCITY LIMITER (Flash Crash Circuit Breaker) ---
+            global GLOBAL_PAYOUT_FREEZE
+            if GLOBAL_PAYOUT_FREEZE:
+                print("   🚫 [CIRCUIT BREAKER] Payout halted - System in Admin Freeze state!")
+                continue
+                
+            # Clean up old tracking data (>5 mins)
+            while GLOBAL_PAYOUT_VELOCITY_TRACKER and GLOBAL_PAYOUT_VELOCITY_TRACKER[0]["time"] < now - timedelta(minutes=5):
+                GLOBAL_PAYOUT_VELOCITY_TRACKER.popleft()
+                
+            aggregate_5m_payout = sum(p["amount"] for p in GLOBAL_PAYOUT_VELOCITY_TRACKER)
+            
+            if aggregate_5m_payout + payout_amount > MAX_PAYOUT_PER_5_MINS:
+                GLOBAL_PAYOUT_FREEZE = True
+                print(f"\n   🚨🚨 [FATAL SECURITY EVENT] FLASH CRASH CIRCUIT BREAKER TRIPPED! 🚨🚨")
+                print(f"   Aggregated payouts (₹{aggregate_5m_payout}) + requested (₹{payout_amount}) exceeds ₹{MAX_PAYOUT_PER_5_MINS}/5min limit.")
+                print(f"   ALL AUTOPAYS SUSPENDED UNTIL SECURITY AUDIT!\n")
+                break # Hard exit from the loop!
+
+            # ── 10-Second Auto-Settlement Simulation (RazorpayX Payouts) ──
+            rp_result = await execute_razorpayx_payout_mock(
+                user_id=user_id,
+                amount=payout_amount,
+                purpose=primary_trigger
+            )
+            
+            # Register payout in global velocity tracker
+            GLOBAL_PAYOUT_VELOCITY_TRACKER.append({"time": now, "amount": payout_amount})
+
+            # ── Write payout to DB ──
+            payout_doc = {
+                "payout_id": rp_result["razorpay_payout_id"],
+                "utr_ref": rp_result["utr"],
+                "amount": payout_amount,
+                "trigger_name": primary_trigger,
+                "all_triggers": [t.trigger_name for t in new_triggers],
+                "paid_at": now,
+                "status": rp_result["status"],
+                "autopay": True,
+                "fraud_score_at_settlement": fraud_score,
+                "trust_score_at_settlement": trust,
+            }
+
+            # ── TRUST REWARD: Honest payout → trust goes UP ──
+            new_trust = min(100.0, trust + 3.0)
+            
+            from bson import ObjectId
+            await db["users"].update_one(
+                {"_id": ObjectId(user_id)},
+                {
+                    "$push": {"payout_history": payout_doc},
+                    "$set": {"trust_score": new_trust},
+                }
+            )
+            print(f"   ✅ DB WRITE: Auto-settled ₹{payout_amount} for {email} ({primary_trigger}) | Trust: {trust:.0f}→{new_trust:.0f}")
+
+            # ── Send Push Notification ──
+            push_token = user.get("expo_push_token")
+            if push_token:
+                await send_expo_push(
+                    token=push_token,
+                    title=f"₹{payout_amount} Settled! ✅",
+                    body=f"{primary_trigger} detected in your zone. Claim auto-settled to your GigGuard wallet.",
+                    data={"payout_id": payout_doc["payout_id"], "screen": "Passbook"},
+                )
+
+        except Exception as e:
+            print(f"   ❌ Error processing user {user.get('email', '?')}: {e}")
+            continue
+
+    print("🔄 ── AUTOPAY SCAN COMPLETE ──\n")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

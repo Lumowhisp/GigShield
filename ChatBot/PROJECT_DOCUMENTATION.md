@@ -382,7 +382,7 @@ Premium  = base_premium × 1.4 × risk_multiplier × income_factor
 5. Initialize platform_status = false in app_state
 6. Run legacy rider migration (idempotent backfill)
 7. Seed admin_metrics document (if missing)
-8. ✅ App ready on http://127.0.0.1:8000
+8. ✅ App ready on https://gigshield-4u5z.onrender.com
 ```
 
 ### Rider Journey
@@ -675,10 +675,10 @@ uvicorn main:app --reload --port 8000
 
 | URL | What |
 |---|---|
-| `http://127.0.0.1:8000` | Rider App (Public Frontend) |
-| `http://127.0.0.1:8000/neural-portal` | Admin Portal (Secret Route) |
-| `http://127.0.0.1:8000/docs` | Swagger API Docs |
-| `http://127.0.0.1:8000/redoc` | ReDoc API Docs |
+| `https://gigshield-4u5z.onrender.com` | Rider App (Public Frontend) |
+| `https://gigshield-4u5z.onrender.com/neural-portal` | Admin Portal (Secret Route) |
+| `https://gigshield-4u5z.onrender.com/docs` | Swagger API Docs |
+| `https://gigshield-4u5z.onrender.com/redoc` | ReDoc API Docs |
 
 ### Default Seed Accounts
 

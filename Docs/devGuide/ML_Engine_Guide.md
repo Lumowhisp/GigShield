@@ -51,3 +51,35 @@ If the `avg_loss_ratio` across the next 7 days exceeds `85%`, the backend flips 
 **Underwriting (Deliverable B):**
 Users with fewer than **5 active delivery days in the last 30 days** are statistically riskier or not full-time. The ML payload (`PremiumRequest`) enforces this:
 If `active_days_last_30_days < 5`, then `is_eligible = False` is broadcasted for Standard and Premium tiers, locking them with reduced opacity in the UI.
+
+---
+
+## 4. Multi-Layer Telematics Fraud Defense (Composite Engine)
+
+To combat GPS spoofing and spatial fraud, the ML engine implements a strict Level 5 Composite Fraud scoring mechanism:
+*   **The Anchor**: At the moment of purchase (`POST /policy/purchase`), the platform permanently logs the user's `baseline_latitude` and `baseline_longitude` into their MongoDB policy. If `haversine_distance > 40.0 km`, it is extremely fatal.
+*   **Kinematics & Telemetry Trap**: The system aggregates data via the OSRM routing API, ip-api.com IP sentinels, and Open-Meteo elevation comparisons to build a composite risk score profile, preventing sophisticated emulation bots.
+
+---
+
+## 5. Unified Trust Score & Systemic Solvency
+
+Every user in MongoDB carries a persistent `trust_score` (0–100, default 50). This score controls their **vesting period**, **payout speed**, and **fraud interrogation depth**.
+
+**Trust Tiers:**
+*   🟢 **Veteran** (80–100): 4h vesting, light fraud check, instant settlement
+*   🔵 **Trusted** (50–79): 12h vesting, full composite check
+*   🟡 **Neutral** (25–49): 24h vesting, full + manual flag
+*   🔴 **Suspicious** (0–24): 48h vesting, full + hard block
+
+**Mutation Rules:**
+*   Clean payout: **+3** | Fraud score 30-59: **-10** | Fraud ≥ 60 (blocked): **-25** | Teleportation: **-25**
+
+**New Detection Layers:**
+*   **Temporal Consistency**: Calculates Coefficient of Variation (`CV = σ/μ`) of GPS ping intervals. `CV > 2.0` = erratic bot-like pattern (+25 fraud pts).
+*   **Behavioral Analysis**: `claim_ratio = payouts / policies`. If `> 0.85` over 3+ policies, statistically impossible for honest rider (+30 fraud pts).
+*   **API Fail-Safe**: If 2+ fraud verification APIs (OSRM, ip-api) fail simultaneously, a "Fog of War" penalty (+15 pts) is applied instead of failing open.
+
+**Systemic Protections:**
+*   **Global Velocity Limiter**: In-memory `deque` sliding window tracks aggregate payouts. If `> ₹50,000` in 5 minutes, `GLOBAL_PAYOUT_FREEZE = True` halts all disbursements.
+*   **24h Duplicate Rejection**: Same trigger cannot pay the same user twice within 24 hours.

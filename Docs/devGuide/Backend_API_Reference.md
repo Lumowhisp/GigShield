@@ -4,9 +4,9 @@ This document highlights the core FastAPI endpoints exposed in `GigGuard_v2_copy
 
 ## Base Configuration
 
-*   **Host Default**: `0.0.0.0:8000`
+*   **Host Default**: `https://gigshield-4u5z.onrender.com`
 *   **CORS**: Completely handled via FastAPI Middleware allowing `*`
-*   **Docs UI**: `http://localhost:8000/docs` (Swagger)
+*   **Docs UI**: `https://gigshield-4u5z.onrender.com/docs` (Swagger)
 
 ---
 

@@ -43,6 +43,13 @@ The core feature of GigGuard is generating a dynamic premium quote based on real
    - Underwriting rules check active days to lock premium tiers for users with `< 5` deliveries.
 6. **Response:** App receives a `PremiumResponse` JSON object modifying the UI instantly.
 
+### The "Automated Claims & Anti-Fraud (Autopay)" Lifecycle
+To handle 10-second auto-settlement while preventing massive financial scams, the system relies on an anchored geofencing architecture:
+1. **The Anchor Check**: Users are geofenced to the GPS coordinates where they originally purchased the policy (`baseline_latitude`, `baseline_longitude`).
+2. **The Sweep**: An Asyncronous `APScheduler` job (`autopay_trigger_scan`) fires every 30 seconds reading all active users' latest pinged GPS.
+3. **The Fraud Firewall**: Before extracting weather data, the engine runs a `haversine_distance` calculation. If the user is > 40km away from their baseline, they are hard-rejected to prevent Teleportation Sploofing.
+4. **The Settlement**: Valid triggers push a mock UTR generation to RazorpayX Sandbox logic, execute the DB write, and fire an Expo Push Notification instantly signaling settlement.
+
 ### Stack Details
 - **Database**: MongoDB Atlas (`motor` async driver)
 - **Auth**: Firebase Auth bridged to PyJWT
