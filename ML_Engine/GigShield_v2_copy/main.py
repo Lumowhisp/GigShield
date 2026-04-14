@@ -970,6 +970,15 @@ def risk_label(loss_ratio: float) -> str:
 # ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
+@app.get("/")
+async def read_root():
+    return {
+        "status": "online",
+        "service": "GigShield API v2",
+        "message": "Welcome to GigShield/GudieWire Backend. Live on Render! 🎉",
+        "docs_url": "/docs"
+    }
+
 @app.get("/health")
 async def health(request: Request):
     """Returns DB connection status alongside ML model health."""
