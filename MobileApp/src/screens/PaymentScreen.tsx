@@ -19,7 +19,7 @@ import { colors, spacing, fontSize, fontWeight, borderRadius } from '../theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { PremiumResponse } from '../services/api';
-import { purchasePolicy, createRazorpayOrder, BASE_URL } from '../services/api';
+import { purchasePolicy, createRazorpayOrder, verifyRazorpayOrder, BASE_URL } from '../services/api';
 import type { RootStackParamList } from '../../App';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -107,11 +107,10 @@ export default function PaymentScreen({ navigation, route }: Props) {
     ]).start();
   }, []);
 
-  // Processing step ticker
+  // Pulse animation setup
   useEffect(() => {
     if (stage !== 'processing') return;
 
-    // Pulse the spinner
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.08, duration: 700, useNativeDriver: true }),
@@ -119,6 +118,13 @@ export default function PaymentScreen({ navigation, route }: Props) {
       ])
     );
     pulse.start();
+
+    return () => pulse.stop();
+  }, [stage]);
+
+  // Processing step ticker
+  useEffect(() => {
+    if (stage !== 'processing') return;
 
     // Step through messages
     let step = 0;
@@ -146,21 +152,16 @@ export default function PaymentScreen({ navigation, route }: Props) {
             razorpayPaymentId || undefined,
             razorpaySignature || undefined,
           );
-          pulse.stop();
           triggerSuccess();
         } catch (error) {
           console.error("Policy Purchase Failed:", error);
-          pulse.stop();
           setStage('checkout'); // Fallback if API fails
           Alert.alert('Purchase Failed', 'Could not activate coverage. Please try again.');
         }
       }
     }, 900);
 
-    return () => {
-      clearInterval(stepInterval);
-      pulse.stop();
-    };
+    return () => clearInterval(stepInterval);
   }, [stage]);
 
   const triggerSuccess = () => {
@@ -195,31 +196,53 @@ export default function PaymentScreen({ navigation, route }: Props) {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
       });
 
-      // Step 3: After browser closes, proceed with policy activation
-      // Store Razorpay order details for verification
+      // Step 3: After browser closes, VERIFY payment with Razorpay before proceeding
       setRazorpayOrderId(orderResponse.order_id);
 
-      // In sandbox mode, move to processing stage
-      setProcessingStep(0);
-      progressAnim.setValue(1 / PROCESSING_STEPS.length);
-      setStage('processing');
+      try {
+        // Poll verification — Razorpay sandbox has a delay before order status updates to "paid"
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        let paid = false;
+
+        for (let attempt = 1; attempt <= 4; attempt++) {
+          await delay(2000); // Wait 2s before each check
+          const verification = await verifyRazorpayOrder(orderResponse.order_id);
+          console.log(`🔍 Payment verification attempt ${attempt}/4:`, verification);
+
+          if (verification.paid) {
+            paid = true;
+            break;
+          }
+        }
+
+        if (paid) {
+          // Payment confirmed — proceed to processing
+          setProcessingStep(0);
+          progressAnim.setValue(1 / PROCESSING_STEPS.length);
+          setStage('processing');
+        } else {
+          // Payment NOT completed — user closed browser without paying
+          Alert.alert(
+            'Payment Incomplete',
+            'Your payment was not completed. Please try again to activate your coverage.',
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (verifyError: any) {
+        console.error('Payment verification failed:', verifyError);
+        Alert.alert(
+          'Verification Failed',
+          'Could not verify your payment status. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
 
     } catch (error: any) {
       console.error('Razorpay order failed:', error);
-      // Fallback: proceed without Razorpay (backward compat)
       Alert.alert(
         'Gateway Unavailable',
-        'Razorpay is unavailable. Proceeding with demo payment.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              setProcessingStep(0);
-              progressAnim.setValue(1 / PROCESSING_STEPS.length);
-              setStage('processing');
-            },
-          },
-        ]
+        'Payment gateway is currently unreachable. Please check your connection and try again.',
+        [{ text: 'OK' }]
       );
     }
   };
@@ -322,23 +345,29 @@ export default function PaymentScreen({ navigation, route }: Props) {
           {/* ── Header ── */}
           <View style={styles.header}>
             <View style={styles.merchantRow}>
-              <View style={[styles.merchantLogo, { backgroundColor: planColor + '22' }]}>
-                <Ionicons name="shield-checkmark" size={20} color={planColor} />
+              <View style={[styles.merchantLogo, { backgroundColor: 'rgba(0, 229, 255, 0.1)' }]}>
+                <Ionicons name="shield-checkmark" size={24} color={colors.aqua} />
               </View>
-              <View>
-                <Text style={styles.merchantName}>GigGuard Insurance</Text>
-                <Text style={styles.merchantUrl}>gigguard.in · Verified Merchant</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.merchantName}>GigGuard Underwriting</Text>
+                <Text style={styles.merchantUrl}>End-to-End Encrypted Handshake</Text>
               </View>
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="checkmark-circle" size={14} color="#00FF88" />
+              <View style={styles.verifiedBadgeContainer}>
+                <Ionicons name="checkmark-done-circle" size={16} color={colors.success} />
+                <Text style={styles.verifiedBadgeText}>VERIFIED</Text>
               </View>
             </View>
           </View>
 
-          {/* ── Order Summary ── */}
+          {/* ── Order Summary Receipt ── */}
           <View style={styles.orderCard}>
+            <View style={styles.receiptHeader}>
+              <Ionicons name="receipt-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.sectionLabel}>Digital Receipt</Text>
+            </View>
+
             <View style={styles.orderRow}>
-              <Text style={styles.orderLabel}>{activePlan.charAt(0).toUpperCase() + activePlan.slice(1)} Plan (Weekly)</Text>
+              <Text style={styles.orderLabel}>{activePlan.charAt(0).toUpperCase() + activePlan.slice(1)} Protection (1 Wk)</Text>
               <Text style={styles.orderValue}>{displayAmount}</Text>
             </View>
             <View style={styles.orderRow}>
@@ -347,7 +376,12 @@ export default function PaymentScreen({ navigation, route }: Props) {
                 ₹{planPrice ? (planPrice * 0.18).toFixed(0) : '0'}
               </Text>
             </View>
-            <View style={styles.orderDivider} />
+
+            {/* Dashed divider */}
+            <View style={styles.dashedDivider}>
+              {[...Array(30)].map((_, i) => <View key={i} style={styles.dashLine} />)}
+            </View>
+
             <View style={styles.orderRow}>
               <Text style={styles.orderTotal}>Total Payable</Text>
               <Text style={[styles.orderTotalValue, { color: planColor }]}>
@@ -356,194 +390,54 @@ export default function PaymentScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          {/* ── Method Tabs ── */}
-          <View style={styles.methodTabs}>
-            {(['upi', 'card', 'netbanking', 'wallet'] as PaymentMethod[]).map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.methodTab, method === m && { borderColor: planColor, backgroundColor: planColor + '15' }]}
-                onPress={() => setMethod(m)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={m === 'upi' ? 'phone-portrait' : m === 'card' ? 'card' : m === 'netbanking' ? 'business' : 'wallet'}
-                  size={16}
-                  color={method === m ? planColor : colors.textSecondary}
-                />
-                <Text style={[styles.methodTabText, method === m && { color: planColor }]}>
-                  {m === 'upi' ? 'UPI' : m === 'card' ? 'Card' : m === 'netbanking' ? 'Net Banking' : 'Wallet'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.trustSignalsContainer}>
+            <View style={styles.trustSignal}>
+              <View style={styles.trustIconWrap}><Ionicons name="shield-half-outline" size={16} color={colors.aqua} /></View>
+              <Text style={styles.trustText}>Bank-Grade{"\n"}Security</Text>
+            </View>
+            <View style={styles.trustSignal}>
+              <View style={[styles.trustIconWrap, { borderColor: 'rgba(255, 107, 53, 0.3)' }]}><Ionicons name="lock-closed-outline" size={16} color={colors.orange} /></View>
+              <Text style={styles.trustText}>PCI-DSS{"\n"}Compliant</Text>
+            </View>
+            <View style={styles.trustSignal}>
+              <View style={[styles.trustIconWrap, { borderColor: 'rgba(0, 230, 118, 0.3)' }]}><Ionicons name="business-outline" size={16} color={colors.success} /></View>
+              <Text style={styles.trustText}>RBI Regulated{"\n"}Gateway</Text>
+            </View>
           </View>
 
-          {/* ── UPI Method ── */}
-          {method === 'upi' && (
-            <View style={styles.methodContent}>
-              <Text style={styles.sectionLabel}>Pay with UPI App</Text>
-              <View style={styles.upiAppsGrid}>
-                {UPI_APPS.map((app) => (
-                  <TouchableOpacity
-                    key={app.id}
-                    style={[
-                      styles.upiAppTile,
-                      selectedUpiApp === app.id && { borderColor: planColor, backgroundColor: planColor + '12' },
-                    ]}
-                    onPress={() => { setSelectedUpiApp(app.id); setUpiId(''); }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.upiAppIcon}>
-                      <Image 
-                        source={app.logo} 
-                        style={styles.upiAppLogo} 
-                        resizeMode="contain" 
-                      />
-                    </View>
-                    <Text style={styles.upiAppName}>{app.name}</Text>
-                    {selectedUpiApp === app.id && (
-                      <Ionicons name="checkmark-circle" size={14} color={planColor} style={styles.upiCheck} />
-                    )}
-                  </TouchableOpacity>
-                ))}
+          <View style={styles.gatewayCard}>
+            <View style={styles.gatewayHeader}>
+              <View style={styles.poweredByWrap}>
+                <Text style={styles.poweredByText}>Secured by</Text>
+                <Text style={styles.razorpayText}>RAZORPAY</Text>
               </View>
-
-              <View style={styles.orRow}>
-                <View style={styles.orLine} />
-                <Text style={styles.orText}>OR</Text>
-                <View style={styles.orLine} />
-              </View>
-
-              <Text style={styles.sectionLabel}>Enter UPI ID</Text>
-              <View style={styles.upiInputWrap}>
-                <TextInput
-                  style={styles.upiInput}
-                  placeholder="yourname@upi"
-                  placeholderTextColor={colors.textSecondary}
-                  value={upiId}
-                  onChangeText={(t) => { setUpiId(t); setSelectedUpiApp(null); }}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                />
-                <Text style={styles.upiInputIcon}>@</Text>
+              <View style={styles.gatewayPulse}>
+                <View style={styles.pulseInner} />
+                <Text style={styles.gatewayActiveText}>GATEWAY ACTIVE</Text>
               </View>
             </View>
-          )}
+            <Text style={styles.gatewayDesc}>
+              You will be securely redirected to India's most trusted gateway. All UPI apps, Credit/Debit cards, and NetBanking supported.
+            </Text>
 
-          {/* ── Card Method ── */}
-          {method === 'card' && (
-            <View style={styles.methodContent}>
-              {/* Mock Card Visual */}
-              <View style={[styles.cardVisual, { borderColor: planColor + '40' }]}>
-                <View style={styles.cardVisualTop}>
-                  <View style={styles.cardChip} />
-                  <Text style={styles.cardVisualNetwork}>VISA</Text>
+            <View style={styles.gatewayLogos}>
+              {['UPI', 'VISA', 'MasterCard', 'NetBanking'].map(method => (
+                <View key={method} style={styles.gLogo}>
+                  <Text style={styles.gLogoText}>{method}</Text>
                 </View>
-                <Text style={styles.cardVisualNumber}>
-                  {cardNumber || '•••• •••• •••• ••••'}
-                </Text>
-                <View style={styles.cardVisualBottom}>
-                  <View>
-                    <Text style={styles.cardVisualHint}>CARD HOLDER</Text>
-                    <Text style={styles.cardVisualValue}>{cardName || 'YOUR NAME'}</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.cardVisualHint}>EXPIRES</Text>
-                    <Text style={styles.cardVisualValue}>{cardExpiry || 'MM/YY'}</Text>
-                  </View>
-                </View>
-              </View>
-
-              <TextInput
-                style={styles.cardInput}
-                placeholder="Card Number"
-                placeholderTextColor={colors.textSecondary}
-                value={cardNumber}
-                onChangeText={(t) => setCardNumber(formatCard(t))}
-                keyboardType="number-pad"
-                maxLength={19}
-              />
-              <TextInput
-                style={styles.cardInput}
-                placeholder="Cardholder Name"
-                placeholderTextColor={colors.textSecondary}
-                value={cardName}
-                onChangeText={setCardName}
-                autoCapitalize="words"
-              />
-              <View style={styles.cardRow}>
-                <TextInput
-                  style={[styles.cardInput, { flex: 1, marginRight: 8 }]}
-                  placeholder="MM/YY"
-                  placeholderTextColor={colors.textSecondary}
-                  value={cardExpiry}
-                  onChangeText={(t) => setCardExpiry(formatExpiry(t))}
-                  keyboardType="number-pad"
-                  maxLength={5}
-                />
-                <TextInput
-                  style={[styles.cardInput, { flex: 1 }]}
-                  placeholder="CVV"
-                  placeholderTextColor={colors.textSecondary}
-                  value={cardCvv}
-                  onChangeText={(t) => setCardCvv(t.replace(/\D/g, '').slice(0, 3))}
-                  keyboardType="number-pad"
-                  secureTextEntry
-                  maxLength={3}
-                />
-              </View>
-            </View>
-          )}
-
-          {/* ── Net Banking ── */}
-          {method === 'netbanking' && (
-            <View style={styles.methodContent}>
-              <Text style={styles.sectionLabel}>Select Your Bank</Text>
-              {BANKS.map((bank) => (
-                <TouchableOpacity key={bank.id} style={styles.bankRow} activeOpacity={0.7}>
-                  <View style={[styles.bankIcon, { backgroundColor: bank.logo ? '#fff' : (bank.color + '22') }]}>
-                    {bank.logo ? (
-                      <Image source={bank.logo} style={styles.bankLogo} resizeMode="contain" />
-                    ) : (
-                      <Text style={[styles.bankIconText, { color: bank.color }]}>{bank.name[0]}</Text>
-                    )}
-                  </View>
-                  <Text style={styles.bankName}>{bank.name}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
               ))}
             </View>
-          )}
-
-          {/* ── Wallets ── */}
-          {method === 'wallet' && (
-            <View style={styles.methodContent}>
-              <Text style={styles.sectionLabel}>Select Wallet</Text>
-              {WALLETS.map((w) => (
-                <TouchableOpacity key={w.id} style={styles.bankRow} activeOpacity={0.7}>
-                  <View style={[styles.bankIcon, { backgroundColor: '#fff' }]}>
-                    <Image 
-                      source={typeof w.logo === 'string' ? { uri: w.logo } : w.logo} 
-                      style={styles.bankLogo} 
-                      resizeMode="contain" 
-                    />
-                  </View>
-                  <Text style={styles.bankName}>{w.name}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          </View>
 
           {/* ── Pay Button ── */}
           <TouchableOpacity
-            style={[styles.payBtn, { backgroundColor: canPay() ? planColor : planColor + '55' }]}
+            style={[styles.payBtn, { backgroundColor: planColor }]}
             onPress={handlePay}
-            disabled={!canPay()}
             activeOpacity={0.85}
           >
-            <Ionicons name="lock-closed" size={16} color="#000" style={{ marginRight: 8 }} />
+            <Ionicons name="open-outline" size={18} color="#000" style={{ marginRight: 8 }} />
             <Text style={styles.payBtnText}>
-              Pay ₹{planPrice ? (planPrice * 1.18).toFixed(0) : '0'} Securely
+              Pay ₹{planPrice ? (planPrice * 1.18).toFixed(0) : '0'} via Razorpay
             </Text>
           </TouchableOpacity>
 
@@ -551,14 +445,6 @@ export default function PaymentScreen({ navigation, route }: Props) {
           <View style={styles.footer}>
             <Ionicons name="shield-checkmark" size={12} color={colors.textSecondary} />
             <Text style={styles.footerText}>Secured by GigGuard · RBI Licensed · 256-bit Encryption</Text>
-          </View>
-
-          <View style={styles.badgeRow}>
-            {['UPI', 'VISA', 'MC', 'RuPay'].map((b) => (
-              <View key={b} style={styles.networkBadge}>
-                <Text style={styles.networkBadgeText}>{b}</Text>
-              </View>
-            ))}
           </View>
 
           {/* Hackathon note */}
@@ -584,74 +470,170 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: { marginBottom: 16 },
+  header: { marginBottom: 20 },
   merchantRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: borderRadius.lg,
-    padding: 14,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderRadius: borderRadius.xl,
+    padding: 16,
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
+    borderColor: 'rgba(255,255,255,0.06)',
+    gap: 14,
   },
   merchantLogo: {
-    width: 40, height: 40, borderRadius: 10,
+    width: 48, height: 48, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(0, 229, 255, 0.3)',
   },
-  merchantName: { color: colors.textPrimary, fontSize: fontSize.md, fontWeight: fontWeight.bold },
-  merchantUrl: { color: colors.textSecondary, fontSize: 11, marginTop: 2 },
-  verifiedBadge: { marginLeft: 'auto' },
-
-  // Order summary
-  orderCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: borderRadius.lg,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16,
-  },
-  orderRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  orderLabel: { color: colors.textSecondary, fontSize: fontSize.sm },
-  orderValue: { color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: fontWeight.medium },
-  orderDivider: { height: 1, backgroundColor: colors.border, marginVertical: 8 },
-  orderTotal: { color: colors.textPrimary, fontSize: fontSize.md, fontWeight: fontWeight.bold },
-  orderTotalValue: { fontSize: 18, fontWeight: fontWeight.bold },
-
-  // Method tabs
-  methodTabs: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  methodTab: {
-    flex: 1,
+  merchantName: { color: colors.textPrimary, fontSize: 15, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+  merchantUrl: { color: colors.aqua, fontSize: 10, marginTop: 4, letterSpacing: 0.5, fontWeight: fontWeight.bold },
+  verifiedBadgeContainer: {
     alignItems: 'center',
-    paddingVertical: 10,
+    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
+    borderColor: 'rgba(0, 230, 118, 0.2)',
   },
-  methodTabText: { color: colors.textSecondary, fontSize: 10, fontWeight: fontWeight.medium },
+  verifiedBadgeText: { color: colors.success, fontSize: 8, fontWeight: fontWeight.bold, marginTop: 2 },
 
-  // Method content area
-  methodContent: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: borderRadius.lg,
-    padding: 16,
+  // Order summary receipt
+  orderCard: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderRadius: borderRadius.xl,
+    padding: 24,
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 20,
+    borderColor: 'rgba(255,255,255,0.06)',
+    marginBottom: 24,
+  },
+  receiptHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20,
   },
   sectionLabel: {
     color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  orderRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' },
+  orderLabel: { color: colors.textSecondary, fontSize: fontSize.md, fontWeight: fontWeight.medium },
+  orderValue: { color: colors.textPrimary, fontSize: fontSize.md, fontWeight: fontWeight.bold },
+
+  dashedDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    marginVertical: 12,
+    marginBottom: 20,
+    opacity: 0.4,
+  },
+  dashLine: {
+    width: 6,
+    height: 1.5,
+    backgroundColor: colors.textSecondary,
+    marginRight: 4,
+  },
+
+  orderTotal: { color: colors.textPrimary, fontSize: 16, fontWeight: fontWeight.bold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  orderTotalValue: { fontSize: 26, fontWeight: fontWeight.heavy },
+
+  // Trust Signals
+  trustSignalsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    gap: 10,
+  },
+  trustSignal: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.01)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
+    borderRadius: borderRadius.lg,
+    padding: 12,
+    alignItems: 'center',
+  },
+  trustIconWrap: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1, borderColor: 'rgba(0, 229, 255, 0.3)',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
+  trustText: {
+    color: colors.textSecondary, fontSize: 10, textAlign: 'center', fontWeight: fontWeight.bold, lineHeight: 14,
+  },
+
+  // Gateway Info Box
+  gatewayCard: {
+    backgroundColor: 'rgba(0, 229, 255, 0.03)',
+    borderRadius: borderRadius.xl,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.15)',
+    marginBottom: 24,
+  },
+  gatewayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  poweredByWrap: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+  },
+  poweredByText: {
+    color: colors.textSecondary,
+    fontSize: 10,
+    fontWeight: fontWeight.medium,
+    letterSpacing: 0.5,
+  },
+  razorpayText: {
+    color: '#008cff', // Razorpay Blue
+    fontSize: 16,
+    fontWeight: fontWeight.heavy,
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  gatewayPulse: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: borderRadius.full,
+    borderWidth: 1, borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  pulseInner: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success,
+  },
+  gatewayActiveText: { color: colors.success, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+  gatewayDesc: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  gatewayLogos: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  gLogo: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  gLogoText: {
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: fontWeight.bold,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 12,
   },
 
   // UPI apps

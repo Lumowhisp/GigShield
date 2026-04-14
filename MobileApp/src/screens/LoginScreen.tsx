@@ -12,6 +12,7 @@ import {
   Alert,
   ScrollView
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from '../theme';
@@ -37,6 +38,8 @@ export default function LoginScreen({ navigation }: Props) {
   const [error, setError] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const blob1Anim = useRef(new Animated.Value(0)).current;
+  const blob2Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -52,7 +55,18 @@ export default function LoginScreen({ navigation }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Orbital blob animations for a premium 3D feel
+    Animated.loop(
+      Animated.timing(blob1Anim, { toValue: 1, duration: 15000, useNativeDriver: true })
+    ).start();
+    Animated.loop(
+      Animated.timing(blob2Anim, { toValue: 1, duration: 20000, useNativeDriver: true })
+    ).start();
   }, []);
+
+  const spin1 = blob1Anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const spin2 = blob2Anim.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -80,7 +94,18 @@ export default function LoginScreen({ navigation }: Props) {
         navigation.navigate('Location' as any);
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred during login');
+      let friendlyError = 'An error occurred during login';
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        friendlyError = 'Invalid email or password. Please try again.';
+      } else if (err.code === 'auth/too-many-requests') {
+        friendlyError = 'Too many failed attempts. Please reset your password or try again later.';
+      } else if (err.code === 'auth/invalid-email') {
+        friendlyError = 'Please enter a valid email address.';
+      } else if (err.message) {
+        // Fallback for general errors but strip out 'Firebase:' text if present
+        friendlyError = err.message.replace(/Firebase:\s*/, '').replace(/\(auth\/.*\)\.?/, '').trim();
+      }
+      setError(friendlyError);
     } finally {
       setLoading(false);
     }
@@ -100,7 +125,15 @@ export default function LoginScreen({ navigation }: Props) {
         [{ text: "OK" }]
       );
     } catch (err: any) {
-      setError(err.message || 'Failed to send reset email');
+      let friendlyError = 'Failed to send reset email';
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        friendlyError = 'No account found with this email address.';
+      } else if (err.code === 'auth/invalid-email') {
+        friendlyError = 'Please enter a valid email address.';
+      } else if (err.message) {
+        friendlyError = err.message.replace(/Firebase:\s*/, '').replace(/\(auth\/.*\)\.?/, '').trim();
+      }
+      setError(friendlyError);
     }
   };
 
@@ -110,6 +143,10 @@ export default function LoginScreen({ navigation }: Props) {
         colors={[colors.gradientStart, colors.gradientEnd]}
         style={StyleSheet.absoluteFillObject}
       />
+
+      {/* Premium Animated Plasma Blobs */}
+      <Animated.View style={[styles.blob, styles.blob1, { transform: [{ rotate: spin1 }, { translateX: 50 }, { translateY: 50 }] }]} />
+      <Animated.View style={[styles.blob, styles.blob2, { transform: [{ rotate: spin2 }, { translateX: -40 }, { translateY: -40 }] }]} />
 
       <KeyboardAvoidingView 
         style={styles.keyboardView} 
@@ -130,6 +167,9 @@ export default function LoginScreen({ navigation }: Props) {
             ]}
           >
             <View style={styles.header}>
+              <View style={styles.iconWrapper}>
+                <Ionicons name="shield-checkmark" size={42} color={colors.aqua} />
+              </View>
               <Text style={styles.brandTitle}>GigGuard</Text>
               <Text style={styles.title}>Welcome Back</Text>
               <Text style={styles.subtitle}>Enter your credentials to access your live dashboard</Text>
@@ -159,7 +199,12 @@ export default function LoginScreen({ navigation }: Props) {
                 isPassword
               />
               
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? (
+                <Animated.View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle-outline" size={20} color={colors.orange} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </Animated.View>
+              ) : null}
 
               <TouchableOpacity style={styles.forgotPassword} onPress={handleForgotPassword}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
@@ -220,9 +265,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     justifyContent: 'center',
   },
+  blob: {
+    position: 'absolute',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    opacity: 0.08,
+  },
+  blob1: {
+    top: -100,
+    right: -100,
+    backgroundColor: colors.aqua,
+  },
+  blob2: {
+    bottom: -100,
+    left: -100,
+    backgroundColor: colors.orange,
+  },
   header: {
     marginBottom: spacing.huge,
     alignItems: 'center',
+  },
+  iconWrapper: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.aquaDim,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.aquaBorder,
   },
   brandTitle: {
     fontSize: fontSize.sm,
@@ -282,15 +352,22 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     letterSpacing: 0.5,
   },
-  errorText: {
-    color: colors.danger,
-    fontSize: fontSize.sm,
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 107, 53, 0.08)', // Using the brand orange instead of harsh red
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.25)',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     marginBottom: spacing.lg,
-    textAlign: 'center',
-    backgroundColor: colors.dangerDim,
-    padding: spacing.sm,
-    borderRadius: borderRadius.sm,
-    overflow: 'hidden',
+  },
+  errorText: {
+    color: colors.orangeLight,
+    fontSize: fontSize.sm,
+    marginLeft: spacing.sm,
+    fontWeight: fontWeight.medium,
+    flex: 1,
   },
   // ── Divider ──
   dividerRow: {

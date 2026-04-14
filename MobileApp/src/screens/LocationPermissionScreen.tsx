@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Animated, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import LottieView from 'lottie-react-native';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
@@ -24,13 +25,22 @@ export default function LocationPermissionScreen({ navigation, route }: Props) {
   const [statusMsg, setStatusMsg] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
+  const blob1Anim = useRef(new Animated.Value(0)).current;
+  const blob2Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
     ]).start();
+
+    // Subtle background animations matching Auth screens
+    Animated.loop(Animated.timing(blob1Anim, { toValue: 1, duration: 25000, useNativeDriver: true })).start();
+    Animated.loop(Animated.timing(blob2Anim, { toValue: 1, duration: 20000, useNativeDriver: true })).start();
   }, []);
+
+  const spin1 = blob1Anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const spin2 = blob2Anim.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
 
   const handleContinue = async () => {
     const income = parseFloat(incomeStr);
@@ -71,8 +81,23 @@ export default function LocationPermissionScreen({ navigation, route }: Props) {
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <LinearGradient
+        colors={[colors.gradientStart, colors.gradientEnd]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <Animated.View style={[styles.blob, styles.blob1, { transform: [{ rotate: spin1 }, { translateX: 60 }, { translateY: 40 }] }]} />
+      <Animated.View style={[styles.blob, styles.blob2, { transform: [{ rotate: spin2 }, { translateX: -50 }, { translateY: -60 }] }]} />
+
+      <ScrollView 
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
 
         <View style={styles.header}>
           <LottieView
@@ -154,27 +179,40 @@ export default function LocationPermissionScreen({ navigation, route }: Props) {
         </View>
 
       </Animated.View>
+      </ScrollView>
 
       {/* Footer */}
       <View style={styles.footer}>
         {isLoading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.aqua} />
+            <LottieView
+              source={{ uri: LOTTIE_URLS.ai }}
+              autoPlay
+              loop
+              style={{ width: 60, height: 60, marginRight: 4, marginLeft: -15 }} // Adjusting margins so text doesn't push too far right
+            />
             <Text style={styles.loadingText}>{statusMsg}</Text>
           </View>
         )}
         <TouchableOpacity
-          style={[styles.primaryButton, isLoading && styles.disabledButton]}
+          style={styles.buttonShadowWrapper}
           onPress={handleContinue}
           disabled={isLoading}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryButtonText}>
-            {isLoading ? 'Analyzing...' : 'Grant Location & Continue'}
-          </Text>
+          <LinearGradient
+            colors={[colors.orangeLight, colors.orange]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.primaryButton, isLoading && styles.disabledButton]}
+          >
+            <Text style={styles.primaryButtonText}>
+              {isLoading ? 'Analyzing...' : 'Grant Location & Continue'}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -182,6 +220,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  blob: {
+    position: 'absolute',
+    width: 450,
+    height: 450,
+    borderRadius: 225,
+    opacity: 0.1,
+  },
+  blob1: {
+    top: -50,
+    right: -100,
+    backgroundColor: colors.orange,
+  },
+  blob2: {
+    bottom: -100,
+    left: -150,
+    backgroundColor: colors.aqua,
   },
   content: {
     flex: 1,
@@ -314,13 +369,17 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
   },
+  buttonShadowWrapper: {
+    shadowColor: colors.orange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
   primaryButton: {
-    backgroundColor: colors.orange,
     paddingVertical: 18,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
-    ...shadows.card,
-    shadowColor: colors.orange,
   },
   disabledButton: {
     opacity: 0.6,

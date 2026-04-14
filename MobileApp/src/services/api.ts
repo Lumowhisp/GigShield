@@ -6,7 +6,7 @@
 import Constants from 'expo-constants';
 
 const BASE_URL = 'https://gigshield-4u5z.onrender.com'; // Production/Render
-// const BASE_URL = 'http://10.251.230.37:8000'; // Local Testing
+// const BASE_URL = 'http://10.150.223.37:8000'; // Local Testing
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -432,6 +432,32 @@ export async function updateUserLocation(latitude: number, longitude: number, al
     },
     body: JSON.stringify({ latitude, longitude, altitude }),
   });
+
+  return response.json();
+}
+
+/**
+ * Verify if a Razorpay order was actually paid
+ */
+export async function verifyRazorpayOrder(orderId: string): Promise<{
+  paid: boolean;
+  status: string;
+  amount_paid: number;
+}> {
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const response = await fetch(`${BASE_URL}/policy/order/verify/${orderId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Payment verification failed');
+  }
 
   return response.json();
 }

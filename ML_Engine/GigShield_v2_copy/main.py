@@ -1436,7 +1436,28 @@ async def create_razorpay_order(req: RazorpayOrderRequest, request: Request):
                 "product": "GigGuard Parametric Insurance"
             }
         }
-        order = razorpay_client.order.create(data=order_data)
+
+        # Retry logic for transient connection failures (Render cold-start / network jitter)
+        import time
+        order = None
+        last_error = None
+        for attempt in range(3):
+            try:
+                order = razorpay_client.order.create(data=order_data)
+                break
+            except (ConnectionError, ConnectionResetError, Exception) as retry_err:
+                last_error = retry_err
+                err_str = str(retry_err).lower()
+                if "connection" in err_str or "reset" in err_str or "aborted" in err_str:
+                    print(f"⚠️  Razorpay attempt {attempt + 1}/3 failed (transient): {retry_err}")
+                    time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s backoff
+                else:
+                    raise  # Non-transient error, don't retry
+
+        if order is None:
+            print(f"❌ Razorpay order creation failed after 3 retries: {last_error}")
+            raise HTTPException(status_code=500, detail=f"Payment gateway error: {str(last_error)}")
+
         print(f"✅ Razorpay Order created: {order['id']} for ₹{req.amount}")
         return {
             "order_id": order["id"],
@@ -1445,10 +1466,58 @@ async def create_razorpay_order(req: RazorpayOrderRequest, request: Request):
             "currency": "INR",
             "key_id": RAZORPAY_KEY_ID,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Razorpay order creation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Payment gateway error: {str(e)}")
 
+
+@app.get("/policy/order/verify/{order_id}")
+async def verify_razorpay_order(order_id: str, request: Request):
+    """
+    Verifies whether a Razorpay order has been paid.
+    Called by the mobile app after the user closes the checkout browser.
+    Returns { "paid": true/false, "status": "paid"/"attempted"/"created" }
+    """
+    if not razorpay_client:
+        raise HTTPException(status_code=503, detail="Payment gateway not configured")
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+
+    try:
+        # Fetch order details from Razorpay
+        import time
+        order = None
+        for attempt in range(3):
+            try:
+                order = razorpay_client.order.fetch(order_id)
+                break
+            except Exception as retry_err:
+                err_str = str(retry_err).lower()
+                if "connection" in err_str or "reset" in err_str or "aborted" in err_str:
+                    print(f"⚠️  Razorpay verify attempt {attempt + 1}/3 failed: {retry_err}")
+                    time.sleep(1.0 * (attempt + 1))
+                else:
+                    raise
+
+        if order is None:
+            raise HTTPException(status_code=502, detail="Could not reach payment gateway for verification")
+
+        is_paid = order.get("status") == "paid"
+        print(f"🔍 Order {order_id} status: {order.get('status')} | paid={is_paid}")
+        return {
+            "paid": is_paid,
+            "status": order.get("status", "unknown"),
+            "amount_paid": order.get("amount_paid", 0),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Order verification failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Verification error: {str(e)}")
 
 from fastapi.responses import HTMLResponse
 

@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   ScrollView
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from '../theme';
@@ -38,6 +39,8 @@ export default function SignupScreen({ navigation }: Props) {
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const blob1Anim = useRef(new Animated.Value(0)).current;
+  const blob2Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -53,7 +56,18 @@ export default function SignupScreen({ navigation }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Orbital blob animations for a premium 3D feel
+    Animated.loop(
+      Animated.timing(blob1Anim, { toValue: 1, duration: 15000, useNativeDriver: true })
+    ).start();
+    Animated.loop(
+      Animated.timing(blob2Anim, { toValue: 1, duration: 20000, useNativeDriver: true })
+    ).start();
   }, []);
+
+  const spin1 = blob1Anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const spin2 = blob2Anim.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
 
   const handleSignup = async () => {
     if (!email || !password || !confirmPassword) {
@@ -71,10 +85,26 @@ export default function SignupScreen({ navigation }: Props) {
       setError('Passwords do not match.');
       return;
     }
-    
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
-    if (!passwordRegex.test(password)) {
-      setError('Password must contain at least 8 characters, one uppercase, one lowercase, one number, and one special character.');
+
+    // Granular password validation feedback
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError('Please add at least one uppercase letter (A-Z).');
+      return;
+    }
+    if (!/[a-z]/.test(password)) {
+      setError('Please add at least one lowercase letter (a-z).');
+      return;
+    }
+    if (!/\d/.test(password)) {
+      setError('Please add at least one number (0-9).');
+      return;
+    }
+    if (!/[@$!%*?&#]/.test(password)) {
+      setError('Please add at least one special character (e.g., @, $, !, %).');
       return;
     }
 
@@ -93,7 +123,17 @@ export default function SignupScreen({ navigation }: Props) {
 
       navigation.navigate('Location');
     } catch (err: any) {
-      setError(err.message || 'An error occurred during registration');
+      let friendlyError = 'An error occurred during registration.';
+      if (err.code === 'auth/email-already-in-use') {
+        friendlyError = 'An account with this email already exists.';
+      } else if (err.code === 'auth/invalid-email') {
+        friendlyError = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/weak-password') {
+        friendlyError = 'Your password is too weak. Please choose a stronger one.';
+      } else if (err.message) {
+        friendlyError = err.message.replace(/Firebase:\s*/, '').replace(/\(auth\/.*\)\.?/, '').trim();
+      }
+      setError(friendlyError);
     } finally {
       setLoading(false);
     }
@@ -105,6 +145,10 @@ export default function SignupScreen({ navigation }: Props) {
         colors={[colors.gradientStart, colors.gradientEnd]}
         style={StyleSheet.absoluteFillObject}
       />
+
+      {/* Premium Animated Plasma Blobs */}
+      <Animated.View style={[styles.blob, styles.blob1, { transform: [{ rotate: spin1 }, { translateX: 50 }, { translateY: 50 }] }]} />
+      <Animated.View style={[styles.blob, styles.blob2, { transform: [{ rotate: spin2 }, { translateX: -40 }, { translateY: -40 }] }]} />
 
       <KeyboardAvoidingView 
         style={styles.keyboardView} 
@@ -125,6 +169,9 @@ export default function SignupScreen({ navigation }: Props) {
             ]}
           >
             <View style={styles.header}>
+              <View style={styles.iconWrapper}>
+                <Ionicons name="shield-half" size={42} color={colors.orange} />
+              </View>
               <Text style={styles.brandTitle}>Onboarding</Text>
               <Text style={styles.title}>Apply For Coverage</Text>
               <Text style={styles.subtitle}>Protect your daily gig income starting today</Text>
@@ -164,7 +211,12 @@ export default function SignupScreen({ navigation }: Props) {
                 />
               </View>
               
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? (
+                <Animated.View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle-outline" size={20} color={colors.aqua} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </Animated.View>
+              ) : null}
 
               <TouchableOpacity 
                 activeOpacity={0.8}
@@ -221,9 +273,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     justifyContent: 'center',
   },
+  blob: {
+    position: 'absolute',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    opacity: 0.08,
+  },
+  blob1: {
+    top: -100,
+    right: -100,
+    backgroundColor: colors.orange,
+  },
+  blob2: {
+    bottom: -100,
+    left: -100,
+    backgroundColor: colors.aqua,
+  },
   header: {
     marginBottom: spacing.xxxl,
     alignItems: 'center',
+  },
+  iconWrapper: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.orangeDim,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.orangeBorder,
   },
   brandTitle: {
     fontSize: fontSize.sm,
@@ -274,15 +351,22 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     letterSpacing: 0.5,
   },
-  errorText: {
-    color: colors.danger,
-    fontSize: fontSize.sm,
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 229, 255, 0.08)', // Using brand aqua instead of red
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.25)',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     marginBottom: spacing.lg,
-    textAlign: 'center',
-    backgroundColor: colors.dangerDim,
-    padding: spacing.sm,
-    borderRadius: borderRadius.sm,
-    overflow: 'hidden',
+  },
+  errorText: {
+    color: colors.aquaLight,
+    fontSize: fontSize.sm,
+    marginLeft: spacing.sm,
+    fontWeight: fontWeight.medium,
+    flex: 1,
   },
   // ── Divider ──
   dividerRow: {

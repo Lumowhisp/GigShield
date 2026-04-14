@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Image, Platform, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
@@ -42,6 +42,8 @@ const RISK_COLORS: Record<string, string> = {
 export default function PlanSelectionScreen({ navigation, route }: Props) {
   const { premiumData } = route.params;
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'standard' | 'premium'>('standard');
+  const [showZoneInfo, setShowZoneInfo] = useState(false);
+  const [showRiskInfo, setShowRiskInfo] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -75,14 +77,14 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
           {/* ─ Context strip ─ */}
           <View style={styles.contextStrip}>
             <View style={styles.contextItem}>
-              <Text style={styles.contextEmoji}>📍</Text>
+              <Ionicons name="location-sharp" size={14} color={colors.aqua} style={{ marginRight: 4 }} />
               <Text style={styles.contextValue}>
                 {premiumData.latitude.toFixed(2)}°, {premiumData.longitude.toFixed(2)}°
               </Text>
             </View>
             <View style={styles.contextDivider} />
             <View style={styles.contextItem}>
-              <Text style={styles.contextEmoji}>💰</Text>
+              <Ionicons name="wallet-outline" size={14} color={colors.orange} style={{ marginRight: 4 }} />
               <Text style={styles.contextValue}>₹{premiumData.daily_income_inr}/day</Text>
             </View>
             <View style={styles.contextDivider} />
@@ -96,7 +98,12 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
 
           {/* ─ Zone + Forecast info cards with Lottie ─ */}
           <View style={styles.infoRow}>
-            <View style={styles.infoCard}>
+            <TouchableOpacity 
+              style={styles.infoCard} 
+              activeOpacity={0.8}
+              onPress={() => setShowZoneInfo(true)}
+            >
+              <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} style={styles.infoIcon} />
               <View style={styles.lottieWrapper}>
                 <LottieView
                   source={{ uri: LOTTIE_URLS.zoneSafety }}
@@ -116,17 +123,17 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
                   </Text>
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* ── Forecast card with risk % ── */}
-            <View style={[styles.infoCard, { borderColor: riskColor + '33' }]}>
-              <View style={styles.lottieWrapper}>
-                <LottieView
-                  source={{ uri: LOTTIE_URLS.forecast }}
-                  autoPlay
-                  loop
-                  style={styles.lottieIcon}
-                />
+            <TouchableOpacity 
+              style={[styles.infoCard, { borderColor: riskColor + '33' }]}
+              activeOpacity={0.8}
+              onPress={() => setShowRiskInfo(true)}
+            >
+              <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} style={styles.infoIcon} />
+              <View style={[styles.lottieWrapper, { backgroundColor: riskColor + '15', borderRadius: borderRadius.xl }]}>
+                <Ionicons name="rainy-outline" size={32} color={riskColor} />
               </View>
               <Text style={styles.infoLabel}>7-Day Risk</Text>
               <Text style={[styles.infoValue, { color: riskColor }]}>
@@ -137,7 +144,7 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
                   {premiumData.disruption_risk.toUpperCase()}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* ─ Plan cards ─ */}
@@ -158,6 +165,8 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
                 plan={premiumData.plans.basic}
                 isSelected={selectedPlan === 'basic'}
                 onSelect={() => setSelectedPlan('basic')}
+                incomeAtRisk={premiumData.daily_income_inr * 7 * actualLossRatio}
+                coveredAmount={premiumData.daily_income_inr * 7 * actualLossRatio * (premiumData.plans.basic.coverage_pct / 100)}
               />
               <PlanCard
                 planKey="standard"
@@ -165,18 +174,22 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
                 isSelected={selectedPlan === 'standard'}
                 isRecommended
                 onSelect={() => setSelectedPlan('standard')}
+                incomeAtRisk={premiumData.daily_income_inr * 7 * actualLossRatio}
+                coveredAmount={premiumData.daily_income_inr * 7 * actualLossRatio * (premiumData.plans.standard.coverage_pct / 100)}
               />
               <PlanCard
                 planKey="premium"
                 plan={premiumData.plans.premium}
                 isSelected={selectedPlan === 'premium'}
                 onSelect={() => setSelectedPlan('premium')}
+                incomeAtRisk={premiumData.daily_income_inr * 7 * actualLossRatio}
+                coveredAmount={premiumData.daily_income_inr * 7 * actualLossRatio * (premiumData.plans.premium.coverage_pct / 100)}
               />
             </>
           )}
 
           {/* ─ 7-Day Risk Bar Chart ─ */}
-          {fr.daily_risks && fr.daily_risks.length > 0 && (
+          {fr.daily_risks && fr.daily_risks.length > 0 ? (
             <View style={styles.riskChartCard}>
               <View style={styles.riskChartHeader}>
                 <Ionicons name="bar-chart-outline" size={14} color={colors.aqua} />
@@ -200,6 +213,19 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
                     </View>
                   );
                 })}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.riskChartCard}>
+              <View style={styles.riskChartHeader}>
+                <Ionicons name="bar-chart-outline" size={14} color={colors.aqua} />
+                <Text style={styles.riskChartTitle}>Daily Disruption Risk (Next 7 Days)</Text>
+              </View>
+              <View style={{ alignItems: 'center', paddingVertical: spacing.lg }}>
+                <Ionicons name="cloud-offline-outline" size={32} color={colors.textMuted} />
+                <Text style={{ fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.sm, textAlign: 'center' }}>
+                  Forecast data is being processed. Your plan price is based on zone-level risk modeling.
+                </Text>
               </View>
             </View>
           )}
@@ -230,36 +256,7 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
             </View>
           )}
 
-          {/* ─ Income at Risk Card (persuasion) ─ */}
-          <View style={styles.incomeRiskCard}>
-            <View style={styles.incomeRiskHeader}>
-              <Ionicons name="trending-down" size={16} color={colors.danger} />
-              <Text style={styles.incomeRiskTitle}>Your Income at Risk This Week</Text>
-            </View>
-            <View style={styles.incomeRiskRow}>
-              <View style={styles.incomeRiskBlock}>
-                <Text style={styles.incomeRiskValue}>
-                  ₹{Math.round(premiumData.daily_income_inr * 7 * actualLossRatio).toLocaleString('en-IN')}
-                </Text>
-                <Text style={styles.incomeRiskLabel}>Expected Loss</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={14} color={colors.textMuted} />
-              <View style={styles.incomeRiskBlock}>
-                <Text style={[styles.incomeRiskValue, { color: colors.success }]}>
-                  ₹{Math.round(premiumData.daily_income_inr * 7 * actualLossRatio * ((premiumData.plans[selectedPlan]?.coverage_pct || 70) / 100)).toLocaleString('en-IN')}
-                </Text>
-                <Text style={styles.incomeRiskLabel}>Covered by GigShield</Text>
-              </View>
-            </View>
-            <View style={styles.incomeRiskBar}>
-              <View style={[styles.incomeRiskFill, {
-                width: `${Math.min(premiumData.plans[selectedPlan]?.coverage_pct || 70, 100)}%`
-              }]} />
-            </View>
-            <Text style={styles.incomeRiskHint}>
-              {premiumData.plans[selectedPlan]?.coverage_pct || 70}% of disrupted earnings recovered automatically — no forms, no waiting.
-            </Text>
-          </View>
+
 
           {/* ─ Social Proof Card (persuasion) ─ */}
           <View style={styles.socialProofCard}>
@@ -278,44 +275,121 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
           </View>
 
 
-          {/* ─ Pricing Formula Transparency ─ */}
+          {/* ─ Pricing Transparency Card ─ */}
           <View style={styles.formulaCard}>
+            {/* Header with trust badge */}
             <View style={styles.formulaHeader}>
-              <Ionicons name="calculator-outline" size={18} color={colors.aqua} />
-              <Text style={styles.formulaTitle}>How Pricing Works</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                <View style={styles.formulaIconWrap}>
+                  <Ionicons name="eye-outline" size={20} color={colors.aqua} />
+                </View>
+                <View>
+                  <Text style={styles.formulaTitle}>How Your Price Is Set</Text>
+                  <Text style={{ fontSize: 10, color: colors.aqua, fontWeight: fontWeight.bold, letterSpacing: 1, marginTop: 2 }}>RADICAL TRANSPARENCY</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.formulaCodeBox}>
-              <Text style={styles.formulaCode}>
-                Premium = Loss_Ratio × Income × Coverage × Loading
-              </Text>
-            </View>
-            <View style={styles.formulaDetails}>
-              <View style={styles.formulaRow}>
-                <Text style={styles.formulaLabel}>ML Loss Ratio</Text>
+
+            {/* Selected plan waterfall */}
+            <View style={styles.formulaWaterfall}>
+              <View style={styles.formulaWRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="analytics-outline" size={14} color={colors.aqua} />
+                  <Text style={styles.formulaLabel}>AI Weather Risk</Text>
+                </View>
                 <Text style={[styles.formulaValue, { color: premiumData.forecast_loss_ratio_7d > 0.15 ? colors.danger : colors.success }]}>
-                  {(premiumData.forecast_loss_ratio_7d * 100).toFixed(2)}%
+                  {(premiumData.forecast_loss_ratio_7d * 100).toFixed(1)}%
                 </Text>
               </View>
-              <View style={styles.formulaRow}>
-                <Text style={styles.formulaLabel}>Your Daily Income</Text>
+              <View style={styles.formulaWRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="wallet-outline" size={14} color={colors.orange} />
+                  <Text style={styles.formulaLabel}>Your Daily Earnings</Text>
+                </View>
                 <Text style={styles.formulaValue}>₹{premiumData.daily_income_inr}</Text>
               </View>
-              <View style={styles.formulaRow}>
-                <Text style={styles.formulaLabel}>Model Accuracy (R²)</Text>
-                <Text style={[styles.formulaValue, { color: colors.aqua }]}>
-                  {(premiumData.model_r2 * 100).toFixed(2)}%
-                </Text>
+              <View style={styles.formulaWRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="shield-half-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.formulaLabel}>Coverage Level</Text>
+                </View>
+                <Text style={styles.formulaValue}>{premiumData.plans[selectedPlan]?.coverage_pct}%</Text>
               </View>
-              <View style={styles.formulaRow}>
-                <Text style={styles.formulaLabel}>Zone Safety Discount</Text>
-                <Text style={[styles.formulaValue, { color: colors.success }]}>
-                  -₹{zp.weekly_discount_inr.toFixed(0)}/wk
+
+              <View style={styles.formulaWDivider} />
+
+              <View style={styles.formulaWRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="calculator-outline" size={14} color={colors.aqua} />
+                  <Text style={[styles.formulaLabel, { color: colors.textPrimary, fontWeight: fontWeight.bold }]}>Base Premium</Text>
+                </View>
+                <Text style={[styles.formulaValue, { fontSize: fontSize.lg }]}>₹{premiumData.plans[selectedPlan]?.base_premium_inr.toFixed(0)}</Text>
+              </View>
+
+              {premiumData.plans[selectedPlan]?.adjustments?.map((adj: any, i: number) => (
+                <View key={i} style={styles.formulaWRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <Ionicons name={adj.amount < 0 ? "trending-down-outline" : "trending-up-outline"} size={14} color={adj.amount < 0 ? colors.success : colors.warning} />
+                    <Text style={[styles.formulaLabel, { color: adj.amount < 0 ? colors.success : colors.warning }]}>
+                      {adj.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                    </Text>
+                  </View>
+                  <Text style={[styles.formulaValue, { color: adj.amount < 0 ? colors.success : colors.warning }]}>
+                    {adj.amount < 0 ? '−' : '+'}₹{Math.abs(adj.amount).toFixed(0)}
+                  </Text>
+                </View>
+              ))}
+
+              <View style={styles.formulaWDivider} />
+
+              <View style={[styles.formulaWRow, { borderBottomWidth: 0 }]}>
+                <Text style={[styles.formulaLabel, { color: colors.textPrimary, fontWeight: fontWeight.heavy, fontSize: fontSize.md }]}>You Pay</Text>
+                <Text style={[styles.formulaValue, { color: colors.orange, fontSize: 22, fontWeight: fontWeight.heavy }]}>
+                  ₹{Math.round(premiumData.plans[selectedPlan]?.weekly_premium_inr)}/wk
                 </Text>
               </View>
             </View>
-            <Text style={styles.formulaNote}>
-              🔒 100% parametric — payouts triggered automatically by weather data, no claim forms needed.
-            </Text>
+
+            {/* ML Confidence */}
+            <View style={styles.formulaConfidence}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Ionicons name="hardware-chip-outline" size={14} color={colors.aqua} />
+                <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: fontWeight.semibold }}>ML Model Confidence</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={styles.formulaConfBar}>
+                  <View style={[styles.formulaConfFill, { width: `${(premiumData.model_r2 * 100)}%` }]} />
+                </View>
+                <Text style={{ fontSize: fontSize.sm, fontWeight: fontWeight.heavy, color: colors.aqua }}>
+                  {(premiumData.model_r2 * 100).toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+
+            {/* Trust signals */}
+            <View style={styles.formulaTrust}>
+              <View style={styles.formulaTrustItem}>
+                <Ionicons name="lock-closed-outline" size={16} color={colors.success} />
+                <Text style={styles.formulaTrustText}>100% Parametric</Text>
+              </View>
+              <View style={styles.formulaTrustItem}>
+                <Ionicons name="flash-outline" size={16} color={colors.orange} />
+                <Text style={styles.formulaTrustText}>Auto Payouts</Text>
+              </View>
+              <View style={styles.formulaTrustItem}>
+                <Ionicons name="document-text-outline" size={16} color={colors.aqua} />
+                <Text style={styles.formulaTrustText}>No Claim Forms</Text>
+              </View>
+            </View>
+
+            {zp.weekly_discount_inr > 0 && (
+              <View style={styles.formulaSavings}>
+                <Ionicons name="gift-outline" size={16} color={colors.success} />
+                <Text style={styles.formulaSavingsText}>
+                  Your safe zone saves you <Text style={{ fontWeight: fontWeight.heavy, color: colors.success }}>₹{zp.weekly_discount_inr.toFixed(0)}/week</Text>
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={{ height: 110 }} />
@@ -338,6 +412,142 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* ══════ Zone Safety Info Modal ══════ */}
+      <Modal visible={showZoneInfo} transparent animationType="slide" onRequestClose={() => setShowZoneInfo(false)}>
+        <View style={styles.tipModalOverlay}>
+          <View style={styles.tipModalCard}>
+            <View style={styles.tipModalHeader}>
+              <View style={styles.tipModalIconWrap}>
+                <Ionicons name="shield-checkmark" size={28} color={colors.success} />
+              </View>
+              <Text style={styles.tipModalTitle}>Zone Safety Score</Text>
+              <TouchableOpacity onPress={() => setShowZoneInfo(false)}>
+                <Ionicons name="close-circle" size={24} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} bounces={true} contentContainerStyle={{ paddingBottom: 20 }}>
+              {/* Big score */}
+              <View style={styles.tipScoreRow}>
+                <Text style={styles.tipScoreBig}>{(zp.zone_safety_score * 100).toFixed(0)}%</Text>
+                <Text style={styles.tipScoreCaption}>Your zone is rated as{' '}
+                  <Text style={{ color: zp.zone_safety_score > 0.7 ? colors.success : colors.warning, fontWeight: fontWeight.bold }}>
+                    {zp.zone_safety_score > 0.85 ? 'Very Safe' : zp.zone_safety_score > 0.7 ? 'Safe' : zp.zone_safety_score > 0.5 ? 'Moderate' : 'Risky'}
+                  </Text>
+                </Text>
+              </View>
+
+              {/* Factors */}
+              <Text style={styles.tipSectionTitle}>What determines this?</Text>
+              <View style={styles.tipFactorRow}>
+                <View style={styles.tipFactorIcon}>
+                  <Ionicons name="triangle-outline" size={18} color={colors.aqua} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tipFactorLabel}>Elevation</Text>
+                  <Text style={styles.tipFactorValue}>{zp.elevation_m.toFixed(0)}m above sea level</Text>
+                </View>
+              </View>
+              <View style={styles.tipFactorRow}>
+                <View style={styles.tipFactorIcon}>
+                  <Ionicons name="water-outline" size={18} color={colors.aqua} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tipFactorLabel}>Distance from Coast</Text>
+                  <Text style={styles.tipFactorValue}>{zp.distance_to_coast_km.toFixed(0)} km</Text>
+                </View>
+              </View>
+              <View style={styles.tipFactorRow}>
+                <View style={styles.tipFactorIcon}>
+                  <Ionicons name="warning-outline" size={18} color={zp.waterlogging_risk === 'low' ? colors.success : colors.warning} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tipFactorLabel}>Waterlogging Risk</Text>
+                  <Text style={styles.tipFactorValue}>{zp.waterlogging_risk.replace(/_/g, ' ').replace(/^\w/, (c: string) => c.toUpperCase())}</Text>
+                </View>
+              </View>
+
+              {/* Discount callout */}
+              {zp.weekly_discount_inr > 0 && (
+                <View style={styles.tipDiscountBox}>
+                  <Ionicons name="gift-outline" size={20} color={colors.success} />
+                  <Text style={styles.tipDiscountText}>
+                    You're saving <Text style={{ fontWeight: fontWeight.heavy, color: colors.success }}>₹{zp.weekly_discount_inr.toFixed(0)}/week</Text> because your zone is safe!
+                  </Text>
+                </View>
+              )}
+
+              <Text style={styles.tipNote}>
+                Higher elevation + farther from coast = lower flood risk = cheaper premium. This score is automatically recalculated every time you request a quote.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════ 7-Day Risk Info Modal ══════ */}
+      <Modal visible={showRiskInfo} transparent animationType="slide" onRequestClose={() => setShowRiskInfo(false)}>
+        <View style={styles.tipModalOverlay}>
+          <View style={styles.tipModalCard}>
+            <View style={styles.tipModalHeader}>
+              <View style={[styles.tipModalIconWrap, { backgroundColor: riskColor + '15' }]}>
+                <Ionicons name="analytics-outline" size={28} color={riskColor} />
+              </View>
+              <Text style={styles.tipModalTitle}>7-Day Risk Forecast</Text>
+              <TouchableOpacity onPress={() => setShowRiskInfo(false)}>
+                <Ionicons name="close-circle" size={24} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} bounces={true} contentContainerStyle={{ paddingBottom: 20 }}>
+              {/* Big risk value */}
+              <View style={styles.tipScoreRow}>
+                <Text style={[styles.tipScoreBig, { color: riskColor }]}>{(premiumData.forecast_loss_ratio_7d * 100).toFixed(0)}%</Text>
+                <View style={[styles.tipRiskBadge, { backgroundColor: riskColor + '20', borderColor: riskColor + '40' }]}>
+                  <Text style={[styles.tipRiskBadgeText, { color: riskColor }]}>{premiumData.disruption_risk.toUpperCase()} RISK</Text>
+                </View>
+              </View>
+
+              <Text style={styles.tipSectionTitle}>How is this predicted?</Text>
+              <Text style={styles.tipDesc}>
+                Our XGBoost ML model, trained on 10 years of climate data across 35 Indian zones, analyzes the following for your exact location:
+              </Text>
+
+              {/* Factors with icons */}
+              {[
+                { icon: 'rainy-outline', label: 'Rainfall Forecast', color: colors.aqua },
+                { icon: 'thermometer-outline', label: 'Temperature Extremes', color: colors.orange },
+                { icon: 'thunderstorm-outline', label: 'Wind & Storm Activity', color: colors.warning },
+                { icon: 'water-outline', label: 'Flood Zone Vulnerability', color: colors.info },
+                { icon: 'cloud-outline', label: 'Air Quality (AQI)', color: colors.textMuted },
+              ].map((f, i) => (
+                <View key={i} style={styles.tipFactorRow}>
+                  <View style={styles.tipFactorIcon}>
+                    <Ionicons name={f.icon as any} size={18} color={f.color} />
+                  </View>
+                  <Text style={styles.tipFactorLabel}>{f.label}</Text>
+                </View>
+              ))}
+
+              {/* Trigger days callout */}
+              <View style={[styles.tipDiscountBox, { backgroundColor: fr.trigger_days_count > 0 ? 'rgba(255,107,53,0.08)' : 'rgba(0,230,118,0.08)', borderColor: fr.trigger_days_count > 0 ? 'rgba(255,107,53,0.2)' : 'rgba(0,230,118,0.2)' }]}>
+                <Ionicons name={fr.trigger_days_count > 0 ? 'alert-circle-outline' : 'checkmark-circle-outline'} size={20} color={fr.trigger_days_count > 0 ? colors.orange : colors.success} />
+                <Text style={styles.tipDiscountText}>
+                  {fr.trigger_days_count > 0 
+                    ? <>{<Text style={{ fontWeight: fontWeight.heavy, color: colors.orange }}>{fr.trigger_days_count} out of 7 days</Text>} have active weather triggers this week.</>
+                    : <Text style={{ color: colors.success }}>No major disruptions expected this week. ✓</Text>
+                  }
+                </Text>
+              </View>
+
+              <Text style={styles.tipNote}>
+                This forecast refreshes every time you open the app, ensuring your premium always reflects the latest weather conditions.
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -409,6 +619,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.04)',
+    position: 'relative',
+  },
+  infoIcon: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
   },
   lottieWrapper: {
     width: 64,
@@ -515,54 +732,99 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  formulaIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: borderRadius.md,
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   formulaTitle: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.bold,
     color: colors.textPrimary,
   },
-  formulaCodeBox: {
-    backgroundColor: 'rgba(0, 229, 255, 0.06)',
-    borderRadius: borderRadius.md,
+  formulaWaterfall: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.12)',
+    borderColor: 'rgba(255,255,255,0.04)',
   },
-  formulaCode: {
-    fontSize: 11,
-    fontWeight: fontWeight.bold,
-    color: colors.aqua,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  formulaDetails: {
-    marginBottom: spacing.md,
-  },
-  formulaRow: {
+  formulaWRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.04)',
+    paddingVertical: 10,
   },
   formulaLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
+    fontWeight: fontWeight.medium,
   },
   formulaValue: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: fontWeight.heavy,
     color: colors.textPrimary,
   },
-  formulaNote: {
+  formulaWDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginVertical: 4,
+  },
+  formulaConfidence: {
+    marginBottom: spacing.lg,
+    paddingHorizontal: 4,
+  },
+  formulaConfBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  formulaConfFill: {
+    height: '100%',
+    backgroundColor: colors.aqua,
+    borderRadius: 3,
+  },
+  formulaTrust: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  formulaTrustItem: {
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  formulaTrustText: {
     fontSize: 10,
-    color: colors.textMuted,
-    lineHeight: 14,
+    color: colors.textSecondary,
+    fontWeight: fontWeight.bold,
     textAlign: 'center',
-    marginTop: spacing.sm,
+  },
+  formulaSavings: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: 'rgba(0,230,118,0.08)',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(0,230,118,0.2)',
+  },
+  formulaSavingsText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
   },
 
   suspensionCard: {
@@ -748,5 +1010,137 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
+  },
+
+  // ══ Tip Info Modals ══
+  tipModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+  },
+  tipModalCard: {
+    backgroundColor: colors.bgElevated,
+    borderTopLeftRadius: borderRadius.xxl,
+    borderTopRightRadius: borderRadius.xxl,
+    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.xxl,
+    paddingBottom: spacing.lg,
+    maxHeight: '75%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  tipModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: spacing.xl,
+  },
+  tipModalIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.lg,
+    backgroundColor: 'rgba(0,230,118,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tipModalTitle: {
+    flex: 1,
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+  },
+  tipScoreRow: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    paddingVertical: spacing.lg,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: borderRadius.xl,
+  },
+  tipScoreBig: {
+    fontSize: 48,
+    fontWeight: fontWeight.heavy,
+    color: colors.success,
+    marginBottom: 4,
+  },
+  tipScoreCaption: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  tipRiskBadge: {
+    marginTop: spacing.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  tipRiskBadgeText: {
+    fontSize: 11,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 1,
+  },
+  tipSectionTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
+    color: colors.aqua,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: spacing.md,
+  },
+  tipDesc: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+  },
+  tipFactorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  tipFactorIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  tipFactorLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textPrimary,
+    fontWeight: fontWeight.medium,
+  },
+  tipFactorValue: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  tipDiscountBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: spacing.lg,
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0,230,118,0.08)',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(0,230,118,0.2)',
+  },
+  tipDiscountText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  tipNote: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    lineHeight: 18,
+    marginTop: spacing.lg,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
