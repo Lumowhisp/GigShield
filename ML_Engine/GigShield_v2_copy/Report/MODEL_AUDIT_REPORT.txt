@@ -1,0 +1,208 @@
+GigShield v2.2 — Full Model Audit Report
+Generated: 2026-04-14
+============================================================
+
+
+============================================================
+  TEST 1: Core Model Performance Metrics
+============================================================
+  Train R²             : 0.9031
+  Test R²              : 0.8795
+  Overfit Gap          : 0.0236 ✅ Excellent
+  Test MAE             : 0.0207
+  Test RMSE            : 0.0414
+  Explained Variance   : 0.8795
+  Features             : 39
+  Training Rows        : 101,540
+  Test Rows            : 24,635
+  GPS Zones            : 35
+
+============================================================
+  TEST 2: Tail Risk Performance
+============================================================
+  ✅ P90 (≥0.1657): R²=0.8531  MAE=0.0540  RMSE=0.0722  n=2466
+  ✅ P95 (≥0.2642): R²=0.7434  MAE=0.0677  RMSE=0.0914  n=1232
+  🔴 P99 (≥0.6178): R²=-0.0472  MAE=0.0937  RMSE=0.1225  n=247
+
+============================================================
+  TEST 3: Per-Region Test Performance
+============================================================
+  ✅ aravalli_udaipur               R²=0.8636  MAE=0.0097  n=547
+  ✅ central_jabalpur               R²=0.9039  MAE=0.0120  n=547
+  ✅ central_raipur                 R²=0.8476  MAE=0.0105  n=547
+  🔴 deccan_bengaluru               R²=0.4604  MAE=0.0137  n=1096
+  ⚠️ deccan_hyderabad               R²=0.6221  MAE=0.0079  n=1096
+  ✅ deccan_nagpur                  R²=0.7532  MAE=0.0112  n=547
+  ⚠️ deccan_pune                    R²=0.6864  MAE=0.0085  n=1096
+  ✅ delta_kolkata                  R²=0.7185  MAE=0.0397  n=1096
+  ✅ delta_surat                    R²=0.8592  MAE=0.0361  n=1096
+  ✅ east_coast_bhubaneswar         R²=0.8485  MAE=0.0274  n=547
+  ⚠️ east_coast_chennai             R²=0.6827  MAE=0.0440  n=1096
+  ⚠️ east_coast_puri                R²=0.6439  MAE=0.0342  n=547
+  ✅ east_coast_thanjavur           R²=0.7367  MAE=0.0338  n=547
+  ✅ east_coast_vizag               R²=0.8404  MAE=0.0235  n=547
+  ✅ himalayan_dehradun             R²=0.8463  MAE=0.0165  n=547
+  ✅ himalayan_dharamshala          R²=0.8908  MAE=0.0089  n=547
+  ⚠️ himalayan_shimla               R²=0.6597  MAE=0.0093  n=547
+  ✅ north_arid_jaipur              R²=0.9223  MAE=0.0112  n=1096
+  ✅ north_plains_chandigarh        R²=0.9386  MAE=0.0124  n=547
+  ✅ north_plains_delhi             R²=0.9498  MAE=0.0129  n=1096
+  ✅ north_plains_lucknow           R²=0.8148  MAE=0.0130  n=547
+  ✅ north_plains_patna             R²=0.7967  MAE=0.0237  n=547
+  ✅ north_plains_varanasi          R²=0.8363  MAE=0.0123  n=547
+  ✅ northeast_gangtok              R²=0.8714  MAE=0.0136  n=547
+  ✅ northeast_guwahati             R²=0.7987  MAE=0.0264  n=547
+  ✅ northeast_imphal               R²=0.7367  MAE=0.0101  n=547
+  ✅ northeast_shillong             R²=0.8952  MAE=0.0091  n=547
+  ✅ south_tip_coast                R²=0.7869  MAE=0.0260  n=547
+  ✅ thar_desert                    R²=0.8024  MAE=0.0106  n=547
+  ✅ thar_desert_deep               R²=0.9443  MAE=0.0186  n=547
+  ✅ west_arid_ahmedabad            R²=0.9107  MAE=0.0118  n=1096
+  ✅ west_coast_goa                 R²=0.9001  MAE=0.0360  n=547
+  ✅ west_coast_kerala              R²=0.8097  MAE=0.0502  n=547
+  ✅ west_coast_low                 R²=0.8491  MAE=0.0445  n=1096
+  ✅ west_coast_mangalore           R²=0.9134  MAE=0.0136  n=547
+
+  Summary: 29/35 regions with R² > 0.70
+
+============================================================
+  TEST 4: Feature Importance (Top 15)
+============================================================
+  trigger_rain_active            0.4701 █████████████████████████████████████
+  n_triggers_active              0.1856 ██████████████
+  trigger_heat_active            0.0741 █████
+  precipitation_sum              0.0600 ████
+  rain_squared                   0.0548 ████
+  trigger_flood_active           0.0523 ████
+  rain_wind_interaction          0.0233 █
+  zone_safety_score              0.0147 █
+  rolling_7d_rain                0.0100 
+  trigger_visibility_active      0.0088 
+  temperature_2m_max             0.0084 
+  elevation                      0.0045 
+  temp_squared                   0.0044 
+  is_coastal                     0.0039 
+  expected_orders_drop           0.0037 
+
+  Dead features (<0.1% importance): 16/39
+  → consecutive_disruption_days, apparent_temperature_max, temp_lag1, rain_intensity, precipitation_hours, temp_humidity_gap, wind_speed_10m_max, heat_index_proxy, rain_wind_ratio, is_extreme_temp, month_temp_interaction, cos_time, sin_time, month, is_weekend, is_extreme_rain
+
+============================================================
+  TEST 5: Prediction Distribution Sanity
+============================================================
+  Actual  — mean=0.0662  std=0.1192  min=0.0000  max=1.0000
+  Predict — mean=0.0655  std=0.1097  min=0.0000  max=1.0688
+  Negative preds (pre-clip): 364 (1.5%)
+  Extreme preds (>0.8)     : 69 (0.28%)
+  Near-zero actual         : 14424 (58.6%)
+  Near-zero predicted      : 13522 (54.9%)
+
+============================================================
+  TEST 6: Residual Analysis
+============================================================
+  Mean residual     : 0.000716 ✅ unbiased
+  Std residual      : 0.0414
+  Median residual   : -0.003139
+  P5/P95 residual   : [-0.0786, 0.0529]
+  Over-predicting   : 726 (2.9%)
+  Under-predicting  : 446 (1.8%)
+
+============================================================
+  TEST 7: Monotonicity Validation
+============================================================
+  Rain monotonicity  : ✅ PASS
+    Rain levels: [0, 10, 30, 65, 100, 150, 200]
+    Predictions: [np.float32(0.1466), np.float32(0.1525), np.float32(0.1599), np.float32(0.1645), np.float32(0.1691), np.float32(0.1694), np.float32(0.1694)]
+  Wind monotonicity  : ✅ PASS
+    Wind levels: [0, 15, 30, 45, 60, 80, 100]
+    Predictions: [np.float32(0.1466), np.float32(0.1546), np.float32(0.1566), np.float32(0.1635), np.float32(0.1635), np.float32(0.1635), np.float32(0.1635)]
+
+============================================================
+  TEST 8: Trigger System Validation
+============================================================
+  ✅ Clear day (no triggers)
+      Active: 0 → none
+      Loss ratio: 0.0000
+  ✅ Heavy monsoon rain (rain+flood)
+      Active: 3 → Heavy Rain / Waterlogging, Flood Zone Risk, Poor Visibility / Smog
+      Loss ratio: 1.0000
+  ✅ Delhi extreme heat
+      Active: 1 → Extreme Heat / Heat Stress
+      Loss ratio: 0.6650
+  ✅ Cyclone scenario
+      Active: 4 → Heavy Rain / Waterlogging, Storm / Cyclone, Flood Zone Risk, Poor Visibility / Smog
+      Loss ratio: 1.0000
+  ✅ Winter fog (Delhi)
+      Active: 1 → Poor Visibility / Smog
+      Loss ratio: 0.3183
+
+  Trigger system: ✅ ALL PASS
+
+============================================================
+  TEST 9: Zone Safety Score Validation
+============================================================
+  Mumbai (coastal low)      score=0.0783  discount=₹0.00  risk=high_risk
+  Delhi (inland high)       score=0.9140  discount=₹9.14  risk=very_safe
+  Shimla (himalayan)        score=1.0000  discount=₹10.00  risk=very_safe
+  Kolkata (delta)           score=0.1875  discount=₹0.00  risk=risky
+  Bengaluru (plateau)       score=1.0000  discount=₹10.00  risk=very_safe
+
+============================================================
+  TEST 10: Walk-Forward Cross-Validation
+============================================================
+  ✅ Fold 2020: R²=0.8943  MAE=0.0188
+  ✅ Fold 2021: R²=0.8842  MAE=0.0188
+  ✅ Fold 2022: R²=0.8896  MAE=0.0198
+  ✅ Fold 2023: R²=0.8623  MAE=0.0187
+
+  Average CV R²: 0.8826 ± 0.0123
+  CV Stability : ✅ Stable
+
+============================================================
+  TEST 11: Edge Cases & Adversarial Inputs
+============================================================
+  ✅ All zeros                 → pred=0.1466
+  ✅ All ones                  → pred=0.1554
+  ✅ Max rain (200mm)          → pred=0.1694
+  ✅ Max temp (50°C)           → pred=0.1600
+  ✅ Max wind (100km/h)        → pred=0.1635
+  ✅ Extreme combo             → pred=0.1972
+
+  Edge cases: ✅ ALL VALID
+
+============================================================
+  TEST 12: Data Integrity
+============================================================
+  Total rows           : 126,175
+  Date range           : 2015-01-01 → 2025-12-31
+  GPS zones            : 35
+  NaN in features      : 0
+  NaN in target        : 0
+  Duplicate rows       : 0
+  Target range         : [0.0000, 1.0000]
+  Meta version         : v2.2
+  Meta features count  : 39
+  Model feature count  : 39
+  Feature match        : ✅ MATCH
+
+============================================================
+  FINAL VERDICT
+============================================================
+  ✅ Model R² > 0.85
+  ✅ Overfit gap < 0.05
+  ✅ MAE < 0.03
+  ✅ CV R² > 0.85
+  ✅ CV stability (std < 0.03)
+  ✅ Region coverage ≥ 30
+  ✅ Regions R²>0.70: 29/35
+  ✅ All edge cases valid
+  ✅ Trigger system correct
+  ✅ Feature count match
+  ✅ No NaN in data
+  ✅ No duplicate rows
+  ✅ Unbiased predictions
+
+  ═══════════════════════════════════════════
+  SCORE: 13/13 checks passed
+  🏆 VERDICT: PRODUCTION READY — Ship it!
+  ═══════════════════════════════════════════

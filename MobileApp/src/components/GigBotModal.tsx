@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { 
   View, Text, StyleSheet, Modal, TouchableOpacity, 
   TextInput, ScrollView, KeyboardAvoidingView, Platform,
-  Animated
+  Animated, Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,17 +13,16 @@ const GROQ_MODEL = "llama-3.1-8b-instant";
 
 const SYSTEM_PROMPT = {
   role: "system",
-  content: `You are GigBot, the official AI assistant built strictly into the GigShield app. You are talking to a gig-economy delivery rider. Be empathetic, very concise, and highly professional. Use ₹ (INR) for monetary values. 
-Your goal is to guide riders through the GigShield platform flow:
-1. APP PURPOSE: GigShield is an ML-powered, parametric micro-insurance platform that pays riders instantly when weather, smog, or traffic disrupts their daily earnings.
-2. BUYING A POLICY: Riders go to the 'Coverage' tab. An ML engine checks a 14-day weather array and their location to dynamically price Basic, Standard, and Premium combo plans. 
-3. COVERAGE WINDOW: After buying a plan, riders must lock in a custom 10-hour or 12-hour active "Shift" (e.g. 10:00 AM - 10:00 PM). They only receive coverage during this specific window to prevent fraud.
-4. REAL-TIME RADAR: The Dashboard shows live AQI, traffic, and radar status. If conditions exceed safe thresholds (e.g., AQI > 300, Rain > 15mm/hr), the risk bars turn red and triggers activate.
-5. AUTO-PAYOUTS: If a trigger activates while a rider has an active policy and is inside their locked Coverage Window, GigShield automatically deposits a parametric payout straight to their Wallet—no manual claims needed!
-6. DEMO SIMULATOR: For testing, tell riders they can use the '⚡ DEMO: Force Payout Trigger' button on the Dashboard to simulate a severe storm and instantly watch the money appear in their Wallet.
-7. WALLET PASSBOOK: The chronological wallet screen tracks real-time deposits and policy deductions in a passbook style.
+  content: `You are GigBot, the official AI assistant built strictly into the GigGuard app. You are talking to a gig-economy delivery rider. Be empathetic, very concise, and highly professional. Use ₹ (INR) for monetary values. 
+Your goal is to guide riders through the GigGuard platform flow:
+1. APP PURPOSE: GigGuard is an ML-powered, parametric micro-insurance platform that pays riders instantly when weather, smog, or severe disruptions hurt their daily earnings.
+2. BUYING A POLICY: Riders go to the 'Coverage' tab. An XGBoost ML engine dynamically prices Weekly plans based on their unique 35-zone GPS safety scores and historical weather patterns.
+3. ZERO-TOUCH AUTO-PAYOUTS: If a rider has an active policy, they NEVER have to "file a claim". Our APScheduler silently scans real-time Open-Meteo weather APIs globally every 30 seconds. If parameters breach safe thresholds (e.g., Extreme Heat, Rain), GigGuard automatically triggers RazorpayX payouts straight to their wallet.
+4. FRAUD & TRUST SCORE: To stop abuse, GigGuard runs a 6-layer Fraud Matrix (including OSRM kinematic checks and a 40km Anchor leash). If riders spoof their GPS or act suspiciously, their "Trust Score" drops, and payout vesting periods increase up to 48 hours. Good riders get instant payouts.
+5. DEMO SIMULATOR: For Hackathon app testing, tell riders/judges they can use the 'FORCE DEV SIMULATOR' terminal button on the Dashboard to bypass the background scheduler and instantly test the Razorpay API settlement flow with confetti.
+6. VERIFICATION: Riders must link their delivery platform ID (e.g. GG-2024-XXXX) on the Profile tab to boost their Trust Score and unlock instant settlements.
 
-If they have questions, answer referencing these exact app flows.`
+If they have questions, answer concisely referencing these exact deep-tech GigGuard flows. Keep answers under 3 sentences if possible.`
 };
 
 interface Message {
@@ -111,7 +110,7 @@ export default function GigBotModal({ visible, onClose }: Props) {
             <View style={styles.headerInfo}>
               <View style={styles.avatarContainer}>
                 <LinearGradient colors={['#5eead4', '#2dd4bf']} style={styles.avatar}>
-                  <Ionicons name="hardware-chip-outline" size={20} color="#042f2e" />
+                  <Image source={require('../../assets/icons8-chatbot-100.png')} style={{width: 26, height: 26}} resizeMode="contain" />
                 </LinearGradient>
                 <View style={styles.onlineDot} />
               </View>
@@ -139,7 +138,7 @@ export default function GigBotModal({ visible, onClose }: Props) {
               ]}>
                 {msg.role === 'bot' && (
                   <View style={styles.botIconSmall}>
-                    <Ionicons name="hardware-chip" size={12} color="#5eead4" />
+                    <Image source={require('../../assets/icons8-chatbot-100.png')} style={{width: 20, height: 20}} resizeMode="contain" />
                   </View>
                 )}
                 <View style={[
@@ -159,7 +158,7 @@ export default function GigBotModal({ visible, onClose }: Props) {
             {isTyping && (
               <View style={[styles.bubbleWrapper, styles.wrapperBot]}>
                 <View style={styles.botIconSmall}>
-                  <Ionicons name="hardware-chip" size={12} color="#5eead4" />
+                  <Image source={require('../../assets/icons8-chatbot-100.png')} style={{width: 20, height: 20}} resizeMode="contain" />
                 </View>
                 <View style={[styles.bubble, styles.bubbleBot, { paddingVertical: 12 }]}>
                   <Text style={[styles.bubbleText, styles.textBot, { fontStyle: 'italic', color: '#94a3b8' }]}>

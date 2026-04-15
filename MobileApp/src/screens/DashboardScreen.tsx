@@ -288,6 +288,31 @@ export default function DashboardScreen({ route, navigation }: Props) {
             </TouchableOpacity>
           )}
 
+          {/* ── Unverified Profile Alert Banner ── */}
+          {profile && profile.gig_verified !== true && (
+            <TouchableOpacity
+              style={[styles.expiryBanner, { backgroundColor: 'rgba(255, 140, 0, 0.1)', borderColor: 'rgba(255, 140, 0, 0.3)' }]}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Profile')}
+            >
+              <View style={styles.expiryBannerContent}>
+                <View style={[styles.expiryIconCircle, { backgroundColor: 'rgba(255, 140, 0, 0.2)' }]}>
+                  <Ionicons name="id-card-outline" size={24} color={colors.orange} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={[styles.expiryBannerTitle, { color: colors.orange }]}>Verify Your ID</Text>
+                  <Text style={styles.expiryBannerDesc}>
+                    Link your delivery partner ID to unlock full trust score benefits and faster payouts.
+                  </Text>
+                </View>
+                <View style={[styles.renewBadge, { backgroundColor: colors.orange }]}>
+                  <Text style={styles.renewBadgeText}>VERIFY</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#FFF" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* ── Hero: Active plan banner ── */}
           <Animated.View style={[
             styles.heroBanner,
@@ -485,21 +510,34 @@ export default function DashboardScreen({ route, navigation }: Props) {
           <Text style={styles.sectionLabel}>CITY DISRUPTION FEED</Text>
           <CityAlertsFeed latitude={premiumData.latitude} longitude={premiumData.longitude} />
 
-          {/* ── Claim Simulator ── */}
-          <Text style={styles.sectionLabel}>CLAIM SIMULATOR</Text>
-          <View style={styles.claimCard}>
+          {/* ── Judge/Dev Testing Tool ── */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, paddingHorizontal: spacing.sm }}>
+            <Ionicons name="code-working-outline" size={18} color={colors.textMuted} />
+            <Text style={[styles.sectionLabel, { marginBottom: 0, marginLeft: 8 }]}>JUDGE / DEV TESTING TOOL</Text>
+          </View>
+          
+          <View style={[styles.claimCard, { backgroundColor: '#121418', borderColor: '#2D3139', borderStyle: 'dashed', borderWidth: 2 }]}>
+            <View style={{ backgroundColor: 'rgba(0, 229, 255, 0.05)', padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: 'rgba(0, 229, 255, 0.1)', marginBottom: spacing.lg }}>
+              <Text style={{ color: colors.aqua, fontSize: fontSize.xs, fontWeight: 'bold', marginBottom: 4, letterSpacing: 1 }}>
+                [ DEV_SANDBOX_ACTIVE ]
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
+                Production uses <Text style={{fontWeight: 'bold', color: '#FFF'}}>Zero-Touch Parametric Autopay</Text> scanning every 30s. This terminal bypasses the scheduler for immediate testing.
+              </Text>
+            </View>
+
             {lossRatio > 0.15 ? (
               <View style={styles.claimWarningRow}>
                 <Text style={styles.claimWarningIcon}>⚠️</Text>
-                <Text style={styles.claimWarningText}>
-                  Weather threshold breached — auto-payout eligible
+                <Text style={[styles.claimWarningText, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>
+                  {'>'} THRESHOLD_BREACHED: TRUE
                 </Text>
               </View>
             ) : (
               <View style={styles.claimWarningRow}>
                 <Text style={styles.claimSafeIcon}>🟢</Text>
-                <Text style={styles.claimSafeText}>
-                  Conditions normal — no payout required today
+                <Text style={[styles.claimSafeText, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>
+                  {'>'} SYSTEM_STATUS: NORMAL
                 </Text>
               </View>
             )}
@@ -510,13 +548,16 @@ export default function DashboardScreen({ route, navigation }: Props) {
               disabled={isSimulating}
               activeOpacity={0.8}
             >
-              <Text style={[styles.claimButtonText, lossRatio <= 0.15 && { color: colors.orange }]}>
-                {isSimulating ? '⏳ Processing UPI...' : lossRatio > 0.15 ? '💸 Simulate Auto-Claim' : '⚡ DEMO: Force Payout Trigger'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="terminal-outline" size={16} color={lossRatio <= 0.15 ? colors.orange : '#FFF'} style={{ marginRight: 8 }} />
+                <Text style={[styles.claimButtonText, lossRatio <= 0.15 && { color: colors.orange }, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }]}>
+                  {isSimulating ? 'EXECUTING_PAYOUT...' : 'EXECUTE_FORCE_TRIGGER'}
+                </Text>
+              </View>
             </TouchableOpacity>
             
-            <Text style={styles.claimSubtext}>
-              {lossRatio <= 0.15 ? 'Tap to test the parametric payout engine' : `Estimated payout: ₹${Math.round(planDetails.expected_weekly_payout_inr)}`}
+            <Text style={[styles.claimSubtext, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 9, opacity: 0.7 }]}>
+              POST /policy/payout/simulate
             </Text>
           </View>
 
@@ -541,7 +582,11 @@ export default function DashboardScreen({ route, navigation }: Props) {
           colors={['#5eead4', '#2dd4bf']} 
           style={styles.fabGradient}
         >
-          <Ionicons name="hardware-chip-outline" size={28} color="#042f2e" />
+          <Image 
+            source={require('../../assets/icons8-chatbot-100.png')} 
+            style={{ width: 42, height: 42 }} 
+            resizeMode="contain" 
+          />
         </LinearGradient>
       </TouchableOpacity>
 

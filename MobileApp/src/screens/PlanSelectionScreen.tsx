@@ -98,8 +98,8 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
 
           {/* ─ Zone + Forecast info cards with Lottie ─ */}
           <View style={styles.infoRow}>
-            <TouchableOpacity 
-              style={styles.infoCard} 
+            <TouchableOpacity
+              style={styles.infoCard}
               activeOpacity={0.8}
               onPress={() => setShowZoneInfo(true)}
             >
@@ -126,7 +126,7 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
             </TouchableOpacity>
 
             {/* ── Forecast card with risk % ── */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.infoCard, { borderColor: riskColor + '33' }]}
               activeOpacity={0.8}
               onPress={() => setShowRiskInfo(true)}
@@ -200,7 +200,7 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
                   const risk = Math.max(rawRisk, 0.02);
                   const pct = Math.min(risk, 1);
                   const barColor = pct > 0.5 ? colors.danger : pct > 0.25 ? colors.orange : colors.success;
-                  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                   const today = new Date();
                   const dayLabel = dayNames[(today.getDay() + i) % 7];
                   return (
@@ -534,7 +534,7 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
               <View style={[styles.tipDiscountBox, { backgroundColor: fr.trigger_days_count > 0 ? 'rgba(255,107,53,0.08)' : 'rgba(0,230,118,0.08)', borderColor: fr.trigger_days_count > 0 ? 'rgba(255,107,53,0.2)' : 'rgba(0,230,118,0.2)' }]}>
                 <Ionicons name={fr.trigger_days_count > 0 ? 'alert-circle-outline' : 'checkmark-circle-outline'} size={20} color={fr.trigger_days_count > 0 ? colors.orange : colors.success} />
                 <Text style={styles.tipDiscountText}>
-                  {fr.trigger_days_count > 0 
+                  {fr.trigger_days_count > 0
                     ? <>{<Text style={{ fontWeight: fontWeight.heavy, color: colors.orange }}>{fr.trigger_days_count} out of 7 days</Text>} have active weather triggers this week.</>
                     : <Text style={{ color: colors.success }}>No major disruptions expected this week. ✓</Text>
                   }

@@ -20,6 +20,7 @@ import { auth } from '../config/firebaseConfig';
 import { signOut } from 'firebase/auth';
 import { CommonActions } from '@react-navigation/native';
 import { Alert } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -48,6 +49,10 @@ export default function ProfileScreen({ navigation }: any) {
   const [isLoadingPin, setIsLoadingPin] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // ── Trust Score State ──
+  const [trustScore, setTrustScore] = useState(50); // Default to Neutral/Starter
+  const [copiedId, setCopiedId] = useState(false);
+
   // ── Animation States ──
   const progressAnim = new Animated.Value(0);
 
@@ -55,7 +60,6 @@ export default function ProfileScreen({ navigation }: any) {
   const fields = [name, dob, mobile, otpVerified, gigId, gigVerified, address, city, stateName];
   const filledFields = fields.filter((f) => f === true || (typeof f === 'string' && f.length > 0)).length;
   const completionPercent = Math.round((filledFields / fields.length) * 100);
-  const trustScore = gigVerified ? 100 : 0;
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -94,6 +98,7 @@ export default function ProfileScreen({ navigation }: any) {
         if (data.gig_verified) setGigVerified(data.gig_verified);
         if (data.gig_rider_id) setRiderId(data.gig_rider_id);
         if (data.mobile) setOtpVerified(true);
+        if (data.trust_score !== undefined) setTrustScore(Math.round(data.trust_score));
       }
     } catch (error) {
       console.error('Failed to load profile', error);
@@ -143,6 +148,12 @@ export default function ProfileScreen({ navigation }: any) {
         setIsVerifying(false);
       }
     }, 2000); // 2-second mock verification
+  };
+
+  const handleCopyId = async () => {
+    await Clipboard.setStringAsync(riderId);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
   };
 
   const handleSendOtp = () => {
@@ -257,7 +268,32 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
           
           <Text style={styles.profileName}>{name || 'Rider Persona'}</Text>
-          <Text style={styles.riderId}>{riderId}</Text>
+          
+          <TouchableOpacity 
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              marginTop: 6,
+              backgroundColor: 'rgba(255, 140, 0, 0.1)', 
+              paddingHorizontal: 12, 
+              paddingVertical: 6, 
+              borderRadius: borderRadius.md,
+              borderWidth: 1,
+              borderColor: 'rgba(255, 140, 0, 0.2)'
+            }} 
+            onPress={handleCopyId}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 13, color: colors.textSecondary, marginRight: 6, letterSpacing: 0.5 }}>Platform ID:</Text>
+            <Text style={[styles.riderId, { marginTop: 0, marginRight: 8, color: colors.orange, fontWeight: 'bold' }]}>
+              {riderId}
+            </Text>
+            <Ionicons 
+              name={copiedId ? "checkmark-done" : "copy-outline"} 
+              size={14} 
+              color={copiedId ? colors.success : colors.orange} 
+            />
+          </TouchableOpacity>
           
           <View style={styles.trustScoreContainer}>
             <Text style={styles.trustLabel}>TRUST SCORE</Text>
@@ -305,11 +341,13 @@ export default function ProfileScreen({ navigation }: any) {
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.orange} />
             <Text style={styles.cardTitle}>Gig Worker Verification</Text>
           </View>
-          <Text style={styles.cardSub}>Enter your platform ID (Swiggy, Uber, etc.)</Text>
+          <Text style={styles.cardSub}>
+            Enter your platform ID (e.g., <Text style={{fontWeight: 'bold', color: colors.orange}}>GG-2024-XXXX</Text>)
+          </Text>
           
           <TextInput
             style={styles.input}
-            placeholder="Gig Platform ID"
+            placeholder="e.g. GG-2024-1234"
             placeholderTextColor="rgba(255,255,255,0.3)"
             value={gigId}
             onChangeText={setGigId}

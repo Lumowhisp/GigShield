@@ -39,6 +39,16 @@ const DISRUPTION_LOTTIES: Record<string, string> = {
   poor_visibility: 'https://lottie.host/cfbbb843-09e6-4207-aebb-4d120df152e2/YEIHwn6glE.lottie',
 };
 
+const ADJUSTMENT_LABELS: Record<string, string> = {
+  zone_safety_discount: 'Safe Zone Reward',
+  forecast_surge: 'Severe Weather Loading',
+  loyalty_discount: 'No-Claim Loyalty Bonus',
+  compound_risk: 'Multi-Hazard Surcharge',
+  seasonal: 'Seasonal Adjustment',
+  price_cap_discount: 'Max Price Cap Applied',
+  minimum_base_floor: 'Minimum Coverage Floor',
+};
+
 export default function CoverageScreen({ route, navigation }: Props) {
   const { premiumData, activePlan } = route.params || {};
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -234,14 +244,19 @@ export default function CoverageScreen({ route, navigation }: Props) {
             {planDetails.adjustments && planDetails.adjustments.map((adj: any, i: number) => (
               <View key={i} style={styles.pricingRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.pricingLabel}>{adj.type.replace(/_/g, ' ')}</Text>
-                  <Text style={styles.pricingReason}>{adj.reason}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name={adj.amount < 0 ? "trending-down-outline" : "trending-up-outline"} size={14} color={adj.amount < 0 ? colors.success : colors.warning} />
+                    <Text style={[styles.pricingLabel, { color: adj.amount < 0 ? colors.success : colors.warning, textTransform: 'none' }]}>
+                      {ADJUSTMENT_LABELS[adj.type] || adj.type.replace(/_/g, ' ')}
+                    </Text>
+                  </View>
+                  <Text style={[styles.pricingReason, { marginLeft: 20 }]}>{adj.reason}</Text>
                 </View>
                 <Text style={[
                   styles.pricingValue,
                   { color: adj.amount < 0 ? colors.success : colors.warning }
                 ]}>
-                  {adj.amount < 0 ? '-' : '+'}₹{Math.abs(adj.amount).toFixed(2)}
+                  {adj.amount < 0 ? '−' : '+'}₹{Math.abs(adj.amount).toFixed(2)}
                 </Text>
               </View>
             ))}

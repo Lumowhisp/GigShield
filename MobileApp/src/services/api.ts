@@ -47,6 +47,9 @@ export interface UserProfile {
   email: string;
   name?: string;
   gig_rider_id?: string;
+  gig_id?: string;
+  gig_verified?: boolean;
+  trust_score?: number;
   created_at?: string;
   is_verified?: boolean;
   active_days_last_30_days?: number;
