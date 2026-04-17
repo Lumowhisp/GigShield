@@ -13,7 +13,7 @@ This document highlights the core FastAPI endpoints exposed in `GigGuard_v2_copy
 ## The AI Engine
 
 ### `POST /premium`
-**The Core ML AI Pricing Route.** Fetches weather, runs the 34-feature XGBoost model, checks DB underwriting status, and returns the customized insurance plans.
+**The Core ML AI Pricing Route.** Fetches weather, runs the 39-feature XGBoost model, checks DB underwriting status, and returns the customized insurance plans.
 
 **Request Payload:**
 ```json
@@ -62,3 +62,45 @@ Simulates a zero-touch parametric payout settlement with integrated fraud detect
 2. **Fraud Check**: Scans `payout_history` array to verify no identical payout has settled for that trigger in the last 24 hours.
 3. Performs a MongoDB atomicity `$push` rollback if any operation fails.
 4. Simulates a 3-second instant UPI credit via the `status: "settled"` return token.
+
+---
+
+## Razorpay Payment Flow (`/policy/order`)
+
+### `POST /policy/order`
+Creates a Razorpay Sandbox order for premium collection. Returns `order_id`, `amount`, `key_id` for the mobile app to open checkout.
+
+### `GET /policy/order/verify/{order_id}`
+Verifies whether a Razorpay order has been paid after the user closes the checkout browser.
+
+### `GET /razorpay/checkout`
+Serves a minimal hosted HTML checkout page that loads the Razorpay JS SDK. Opened via expo-web-browser from the mobile app.
+
+### `POST /policy/purchase`
+Records a policy purchase and activates 7-day coverage. If Razorpay fields are provided, verifies the payment signature first.
+
+---
+
+## User Telemetry (`/user`)
+
+### `POST /user/push-token`
+Stores the Expo Push Token for push notifications on payout settlements.
+
+### `POST /user/location`
+Stores the user's latest GPS location for autopay trigger scanning. Awards +2 trust for consistent GPS (within 5km, max once per 24h).
+
+---
+
+## Admin Dashboard (`/admin`)
+
+### `POST /admin/login`
+Admin authentication with JWT token generation (role-based access control).
+
+### `GET /admin/dashboard`
+Aggregated platform stats: total users, active policies, total premiums, total payouts, loss ratio, tier/trust distribution, trigger frequency, daily charts, circuit breaker status.
+
+### `GET /admin/users`
+Paginated list of all registered users with policy summaries, trust scores, and location data.
+
+### `GET /admin/risk-forecast`
+7-day predictive risk forecast for admin analytics using Delhi NCR as reference. Returns loss ratios, active triggers, and compound severity per day.

@@ -5,9 +5,9 @@ This document provides an executive analysis of the trained ML model residing in
 ## Model Architecture
 *   **Algorithm:** `XGBoost v2.1` (Gradient Boosted Trees)
 *   **Target Variable:** `loss_ratio` (The actuarial probability of a disruption resulting in a payout).
-*   **Input Space:** 34 total features (combining raw weather, rolling windows, geographic data, and deterministic trigger states).
+*   **Input Space:** 39 total features (combining raw weather, rolling windows, lag features, geographic data, and deterministic trigger states).
 *   **Dataset Size:** 126,175 rows spanning 10 years and 35 distinct GPS climate zones in India.
-*   **Performance:** Achieves a Test $R^2$ of **0.8773** and Test MAE of **0.021**, meaning our model can confidently explain 87.7% of the variance in parameteric weather payouts without overfitting (Walking Forward CV R² is 0.8772).
+*   **Performance:** Achieves a Test $R^2$ of **0.8795** and Test MAE of **0.0207**, meaning our model can confidently explain 87.95% of the variance in parametric weather payouts without overfitting (Walking Forward CV R² is 0.8808).
 
 ---
 

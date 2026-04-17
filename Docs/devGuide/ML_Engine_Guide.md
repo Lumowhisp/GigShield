@@ -67,13 +67,16 @@ To combat GPS spoofing and spatial fraud, the ML engine implements a strict Leve
 Every user in MongoDB carries a persistent `trust_score` (0–100, default 50). This score controls their **vesting period**, **payout speed**, and **fraud interrogation depth**.
 
 **Trust Tiers:**
-*   🟢 **Veteran** (80–100): 4h vesting, light fraud check, instant settlement
-*   🔵 **Trusted** (50–79): 12h vesting, full composite check
-*   🟡 **Neutral** (25–49): 24h vesting, full + manual flag
-*   🔴 **Suspicious** (0–24): 48h vesting, full + hard block
+*   🟢 **Veteran** (80–100): 2h vesting, light fraud check, priority settlement
+*   🔵 **Trusted** (50–79): 4h vesting, full composite check
+*   🟡 **Neutral** (25–49): 8h vesting, full + manual flag
+*   🔴 **Suspicious** (0–24): 24h vesting, full + hard block
+
+> **First Policy Override:** A rider's first-ever policy always activates in 2h regardless of trust tier.
 
 **Mutation Rules:**
-*   Clean payout: **+3** | Fraud score 30-59: **-10** | Fraud ≥ 60 (blocked): **-25** | Teleportation: **-25**
+*   Clean payout: **+3** | GPS consistency (within 5km): **+2** | Verify gig ID: **+10** | Complete profile: **+5** | No-claim week: **+1**
+*   Fraud score 30-59: **-10** | Fraud ≥ 60 (blocked): **-25** | Teleportation: **-25** | VPN/proxy: **-15** | Irregular pings: **-5**
 
 **New Detection Layers:**
 *   **Temporal Consistency**: Calculates Coefficient of Variation (`CV = σ/μ`) of GPS ping intervals. `CV > 2.0` = erratic bot-like pattern (+25 fraud pts).

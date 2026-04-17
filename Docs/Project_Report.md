@@ -39,7 +39,7 @@
 
 GigGuard (marketed as **GigGuard**) is an end-to-end, AI-powered parametric micro-insurance platform engineered to protect India's 15+ million gig delivery riders — Zomato, Swiggy, Uber, Rapido, Zepto — against income loss caused by uncontrollable external disruptions such as extreme weather events, severe air pollution, flooding, and cyclones. Unlike traditional insurance which relies on manual claim filing and weeks of adjudication, GigGuard delivers a **fully automated, zero-touch claims pipeline**: real-time weather and environmental data are monitored continuously; when pre-defined parametric thresholds are breached, payouts are calculated actuarially and settled to the rider's wallet in under 3 seconds — with no human intervention and no paperwork.
 
-The platform combines a **Random Forest ML model** (R² = 0.8773, trained on 126,175 rows across 35 GPS zones covering 10 years of weather data) with a **deterministic heuristic trigger engine** (6 automated disruption triggers) and a **dynamic actuarial pricing system** with weekly premiums as low as ₹20—all delivered through a premium React Native mobile application.
+The platform combines an **XGBoost Gradient Boosted Trees ML model** (R² = 0.8795, trained on 126,175 rows across 35 GPS zones covering 10 years of weather data) with a **deterministic heuristic trigger engine** (6 automated disruption triggers) and a **dynamic actuarial pricing system** with weekly premiums as low as ₹20—all delivered through a premium React Native mobile application.
 
 ---
 
@@ -98,8 +98,8 @@ When a cloudburst floods Mumbai's streets, when Delhi's AQI crosses 400, or when
 │                                                                     │
 │  ┌──────────────┐     ┌──────────────────┐     ┌────────────────┐  │
 │  │  React Native │     │   FastAPI Backend │     │   ML Engine    │  │
-│  │  Mobile App   │────▶│   (Uvicorn ASGI)  │────▶│  (XGBoost /   │  │
-│  │  (Expo SDK)   │◀────│                    │◀────│   RandomForest)│  │
+│  │  Mobile App   │────▶│   (Uvicorn ASGI)  │────▶│  (XGBoost     │  │
+│  │  (Expo SDK)   │◀────│                    │◀────│   Booster)    │  │
 │  └──────────────┘     └────────┬───────────┘     └────────────────┘  │
 │         │                      │                         │          │
 │         │              ┌───────┴───────┐                 │          │
@@ -126,7 +126,7 @@ The core feature is generating a dynamic premium quote based on real-time weathe
 1. **Client Trigger** — Mobile app fetches GPS coordinates and calls `POST /premium`
 2. **Context Gathering** — Backend concurrently fetches 14 days of weather data (7 historical + 7 forecast) and elevation data from Open-Meteo
 3. **Trigger Evaluation** — 6 severe disruption triggers are evaluated over the forecast period
-4. **ML Prediction** — Weather arrays compiled into 34 features, fed into the trained model; predicts `loss_ratio` for each day
+4. **ML Prediction** — Weather arrays compiled into 39 features, fed into the trained model; predicts `loss_ratio` for each day
 5. **Actuarial Adjustments** — Base premium calculated with sigma uncertainty loading, dynamic margins, and premium caps
 6. **Response** — App receives `PremiumResponse` JSON, UI updates instantly
 
@@ -143,7 +143,7 @@ The core feature is generating a dynamic premium quote based on real-time weathe
 | **Database** | MongoDB Atlas | Flexible document model for rider profiles, transactions |
 | **Async DB Driver** | Motor 3.7.1 | Non-blocking MongoDB operations |
 | **Schema Validation** | Pydantic V2 | Strict typing with enum enforcement |
-| **ML Model** | XGBoost 2.1+ / scikit-learn 1.5+ | Ensemble learning for loss-ratio regression |
+| **ML Model** | XGBoost 2.1+ (native Booster format) | Ensemble learning for loss-ratio regression, loaded in native `.ubj` format for memory efficiency |
 | **Data Processing** | pandas 2.2+, NumPy 2.0+ | Feature engineering & data wrangling |
 | **HTTP Client** | httpx 0.28+ | Async parallel requests to external APIs |
 | **Authentication** | bcrypt 5.0 + PyJWT 2.10+ | Industry-standard password hashing + stateless JWT tokens |
@@ -184,17 +184,17 @@ The core feature is generating a dynamic premium quote based on real-time weathe
 |---|---|
 | **Algorithm** | XGBoost v2.1 (Gradient Boosted Trees) |
 | **Target Variable** | `loss_ratio` — expected fraction of daily income lost (0.0 – 1.0) |
-| **Feature Space** | 34 features (raw weather + rolling windows + geographic + trigger indicators) |
+| **Feature Space** | 39 features (raw weather + rolling windows + geographic + trigger indicators + lag features) |
 | **Training Data** | 126,175 rows, 35 GPS zones, 10 years of historical weather |
-| **Test R²** | **0.8773** (87.73% variance explained) |
-| **Train R²** | 0.8991 |
-| **Walk-Forward CV R²** | 0.8772 |
-| **Overfit Gap** | 0.0217 (excellent — minimal overfitting) |
-| **Test MAE** | ₹0.021 per ₹1 income |
+| **Test R²** | **0.8795** (87.95% variance explained) |
+| **Train R²** | 0.9031 |
+| **Walk-Forward CV R²** | 0.8808 |
+| **Overfit Gap** | 0.0236 (excellent — minimal overfitting) |
+| **Test MAE** | ₹0.0207 per ₹1 income |
 
 ### 6.2 Feature Engineering
 
-The 34 input features are grouped into four categories:
+The 39 input features are grouped into five categories:
 
 **A. Raw Weather Variables (7)**
 - `precipitation_sum`, `temperature_2m_max`, `wind_speed_10m_max`, `apparent_temperature_max`, `precipitation_hours`, `wind_gusts_10m_max`, `shortwave_radiation_sum`
@@ -204,10 +204,16 @@ The 34 input features are grouped into four categories:
 - Temporal: `sin_time`, `cos_time`, `is_weekend`, `month`
 - Interactions: `rain_wind_interaction`, `rain_squared`, `wind_squared`, `temp_squared`, `rain_wind_ratio`, `heat_index_proxy`, `rain_intensity`, `temp_humidity_gap`
 
-**C. Geographic Features (6)**
+**C. Lag Features (4)**
+- `rain_lag1`, `temp_lag1`, `month_rain_interaction`, `month_temp_interaction`
+
+**D. Extreme & Disruption Indicators (3)**
+- `is_extreme_rain`, `is_extreme_temp`, `consecutive_disruption_days`, `expected_orders_drop`
+
+**E. Geographic Features (6)**
 - `elevation`, `is_coastal`, `latitude`, `longitude`, `distance_to_coast`, `zone_safety_score`
 
-**D. Trigger Indicators (6)**
+**F. Trigger Indicators (6)**
 - `trigger_rain_active`, `trigger_heat_active`, `trigger_storm_active`, `trigger_flood_active`, `trigger_visibility_active`, `n_triggers_active`
 
 ### 6.3 Feature Importance Analysis
@@ -569,13 +575,16 @@ Unlike traditional insurance fraud systems that use rigid binary rules, GigGuard
 
 | Trust Level | Score | Vesting Period | Payout Speed | Fraud Check |
 |---|---|---|---|---|
-| 🟢 **Veteran** | 80–100 | 4 hours | Instant | Light (Geofence only) |
-| 🔵 **Trusted** | 50–79 | 12 hours | Standard | Full composite |
-| 🟡 **Neutral** | 25–49 | 24 hours | Delayed | Full + manual flag |
-| 🔴 **Suspicious** | 0–24 | 48 hours | Held for review | Full + hard block |
+| 🟢 **Veteran** | 80–100 | 2 hours | Priority / Instant | Light (Geofence only) |
+| 🔵 **Trusted** | 50–79 | 4 hours | Standard | Full composite |
+| 🟡 **Neutral** | 25–49 | 8 hours | Delayed | Full + manual flag |
+| 🔴 **Suspicious** | 0–24 | 24 hours | Held for review | Full + hard block |
 
 **Trust Mutations:**
-- Clean payout received: **+3** | Policy renewed: **+5** | Fraud score 30–59: **-10** | Fraud score ≥ 60 (blocked): **-25** | Teleportation detected: **-25**
+- Clean payout received: **+3** | Consistent GPS (within 5km): **+2** | Verify Gig Worker ID: **+10** | Complete profile: **+5** | No-claim week: **+1**
+- Fraud score 30–59: **-10** | Fraud score ≥ 60 (blocked): **-25** | Teleportation detected: **-25** | VPN/proxy detected: **-15** | Irregular pings: **-5**
+
+> **First Policy Override:** A rider's very first policy always activates in just 2 hours regardless of trust tier, ensuring new users experience instant protection.
 
 ### 14.2 Multi-Layer Fraud Firewall (7 Layers)
 
@@ -600,7 +609,7 @@ Each claim is evaluated through the composite engine returning a `FraudVerdict` 
 
 | Protection | Mechanism |
 |---|---|
-| **Trust-Adaptive Vesting** | Vesting period scales from 4h (Veterans) to 48h (Suspicious) based on trust tier |
+| **Trust-Adaptive Vesting** | Vesting period scales from 2h (Veterans) to 24h (Suspicious) based on trust tier. First policy always activates in 2h. |
 | **Global Velocity Limiter** | Sliding-window circuit breaker halts ALL payouts if aggregate exceeds ₹50,000 in 5 minutes |
 | **24h Duplicate Rejection** | Same trigger cannot pay the same user twice within 24 hours |
 
@@ -717,10 +726,10 @@ This follows the standard microinsurance cross-subsidy strategy:
 
 | Feature | Description |
 |---|---|
-| **Razorpay Sandbox Integration** | Live UPI payout testing via Razorpay test mode |
+| ~~**Razorpay Sandbox Integration**~~ | ✅ **COMPLETED** — Live UPI payout testing via Razorpay test mode with order creation, signature verification, and hosted checkout |
+| ~~**Admin Analytics Dashboard**~~ | ✅ **COMPLETED** — Full admin panel with real-time platform metrics, risk forecasting, user management, and circuit breaker monitoring |
 | **Advanced Fraud Detection** | GPS spoofing detection via cell tower + Wi-Fi triangulation |
 | **Computer Vision Fallback** | AI vision review for riders who lose connectivity during storms |
-| **Admin Analytics Dashboard** | Loss ratios, predictive analytics on next week's weather exposure |
 | **Reinsurance Layer** | Automated catastrophic event reserve management |
 | **Multi-Persona Expansion** | Extend to e-commerce (Amazon/Flipkart) and quick-commerce (Zepto/Blinkit) riders |
 | **Regional Language Support** | Hindi, Tamil, Bengali, Marathi in-app |
