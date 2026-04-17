@@ -6,6 +6,12 @@ This repository holds the entire platform logic, from the sophisticated Machine 
 
 ---
 
+## 📊 PitchDeck
+
+👉 **[View our Complete Pitch Deck here (Google Drive)](https://drive.google.com/drive/folders/1CCkqI1l6s6Rf2mYb_9xvtmAvBSXhEroX)**
+
+---
+
 ##  Developer Guides & Documentation
 
 To deeply understand the core architecture of the codebase, please review our extensive documentation. **Start with the Project Report.**
