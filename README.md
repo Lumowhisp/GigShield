@@ -12,6 +12,12 @@ This repository holds the entire platform logic, from the sophisticated Machine 
 
 ---
 
+## 👑 Admin Website
+
+👉 **[View our live Admin Dashboard here](https://admingigguard.netlify.app)**
+
+---
+
 ##  Developer Guides & Documentation
 
 To deeply understand the core architecture of the codebase, please review our extensive documentation. **Start with the Project Report.**
