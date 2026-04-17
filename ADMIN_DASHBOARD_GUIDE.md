@@ -113,16 +113,13 @@ Every 5 minutes, an APScheduler task (`autopay_trigger_scan`) wakes up. It fetch
 * `POST /policy/payout/simulate`: Fire an automated trigger settlement via API.
 * `POST /user/location`: GPS telemetry injection.
 
-### Missing Endpoints (Backend Implementation Required)
-> **CRITICAL WARNING FOR FRONTEND DEVS:**  
-> The current API is entirely user-centric. **There are currently NO Admin-specific API endpoints.** 
-> To build the dashboard securely, the backend team MUST implement the following (or you must write an internal DB connection layer directly connecting to MongoDB):
+### Implemented Admin Endpoints ✅
+> **All admin endpoints are now live** and implemented in `main.py`:
 
-1. `GET /admin/stats`: To return aggregated totals (Total users, policies, payouts, total INR spent).
-2. `GET /admin/users`: Paginated list of users, filterable by `trust_score`.
-3. `GET /admin/users/{id}`: Detailed view of a single user's `location_history` and fraud strikes.
-4. `GET /admin/system/circuit-breaker`: Returns the boolean status of `GLOBAL_PAYOUT_FREEZE` and recent 5-min activity.
-5. `POST /admin/system/circuit-breaker/reset`: Allows operators to reset `GLOBAL_PAYOUT_FREEZE` after auditing a flash crash.
+1. `POST /admin/login`: Admin authentication with JWT token (role-based).
+2. `GET /admin/dashboard`: Aggregated platform stats — total users, active policies, premiums collected, payouts settled, loss ratio, tier/trust distribution, trigger frequency, daily charts, circuit breaker status, and model metadata.
+3. `GET /admin/users`: Full list of all registered users with policy summaries, trust scores, payout totals, and GPS locations.
+4. `GET /admin/risk-forecast`: 7-day predictive risk forecast using Delhi NCR as reference, with trigger evaluation per day.
 
 ---
 

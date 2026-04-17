@@ -136,7 +136,7 @@ export default function WalletScreen() {
           {/* 4 actuarial stat blocks */}
           <View style={styles.actuarialGrid}>
             <View style={styles.actuarialStatBox}>
-              <Text style={styles.actuarialStatValue}>0.8773</Text>
+              <Text style={styles.actuarialStatValue}>0.8795</Text>
               <Text style={styles.actuarialStatLabel}>Model R²</Text>
             </View>
             <View style={styles.actuarialStatBox}>
@@ -184,7 +184,7 @@ export default function WalletScreen() {
                     <View style={styles.formulaBox}>
                       <Text style={styles.formulaCode}>Loss Ratio = XGBoost(rain, wind, AQI, GPS zone, ...)</Text>
                     </View>
-                    <Text style={styles.formulaHint}>Our model looks at 34 weather + location signals and outputs a number between 0–1. Example: 0.18 means 18% chance of earnings disruption today.</Text>
+                    <Text style={styles.formulaHint}>Our model looks at 39 weather + location signals and outputs a number between 0–1. Example: 0.18 means 18% chance of earnings disruption today.</Text>
                   </View>
                 </View>
 
