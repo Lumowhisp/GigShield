@@ -539,6 +539,11 @@ async def fetch_weather_and_elevation(lat: float, lon: float, target_date: date)
                 client.get(elev_url, params={"latitude": lat, "longitude": lon})
             )
             
+            # Extract elevation first (lightweight, rarely fails)
+            elevation = 200.0
+            if elev_resp.status_code == 200 and "elevation" in elev_resp.json():
+                elevation = elev_resp.json()["elevation"][0]
+
             archive_resp.raise_for_status()
             forecast_resp.raise_for_status()
             
@@ -552,28 +557,26 @@ async def fetch_weather_and_elevation(lat: float, lon: float, target_date: date)
             for k in archive_data["daily"]:
                 if k == "time": continue
                 combined_daily[k] = archive_data["daily"][k] + forecast_data["daily"][k][1:]
-                
-            elevation = 20.0
-            if elev_resp.status_code == 200 and "elevation" in elev_resp.json():
-                elevation = elev_resp.json()["elevation"][0]
 
             return combined_daily, elevation
 
-    except httpx.RequestError as e:
-        print(f"⚠️ API Connection Error: {e}. USING FALLBACK MOCK DATA FOR DEMO.")
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        print(f"⚠️ API Error: {e}. USING FALLBACK MOCK DATA FOR DEMO. Elevation={elevation}m.")
         # Fallback Mock Data so the demo doesn't crash on bad WiFi
         dates = [(start_date + timedelta(days=i)).isoformat() for i in range(14)]
         mock_daily = {
             "time": dates,
-            "precipitation_sum": [0.5, 2.0, 0, 0, 15.0, 45.0, 120.0, 50.0, 10.0, 0, 0, 5.0, 0, 0],
-            "temperature_2m_max": [35, 34, 38, 39, 31, 29, 28, 30, 32, 34, 35, 33, 36, 37],
-            "apparent_temperature_max": [38, 37, 42, 44, 34, 32, 30, 33, 35, 38, 40, 37, 41, 42],
-            "wind_speed_10m_max": [10, 12, 8, 15, 25, 40, 55, 30, 15, 10, 12, 14, 8, 10],
-            "wind_gusts_10m_max": [15, 18, 12, 22, 35, 55, 75, 45, 25, 15, 18, 20, 12, 15],
-            "shortwave_radiation_sum": [22, 20, 24, 25, 15, 8, 5, 12, 18, 21, 23, 20, 25, 24],
-            "precipitation_hours": [1, 2, 0, 0, 4, 12, 18, 8, 3, 0, 0, 1, 0, 0],
+            "precipitation_sum": [0.0, 1.2, 0.0, 0.0, 5.0, 2.0, 0.0,   0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            "temperature_2m_max": [35, 34, 36, 37, 35, 34, 35,   35, 36, 35, 36, 35, 36, 37],
+            "apparent_temperature_max": [38, 37, 39, 40, 38, 37, 38,   38, 39, 38, 39, 38, 39, 40],
+            "wind_speed_10m_max": [10, 12, 8, 15, 12, 10, 8,   10, 12, 10, 11, 9, 8, 10],
+            "wind_gusts_10m_max": [15, 18, 12, 22, 18, 15, 12,   15, 18, 16, 17, 14, 12, 15],
+            "shortwave_radiation_sum": [22, 20, 24, 25, 22, 23, 24,   23, 24, 22, 23, 24, 25, 24],
+            "precipitation_hours": [0, 1, 0, 0, 1, 0, 0,   0, 0, 0, 0, 0, 0, 0],
         }
-        return mock_daily, 20.0
+        return mock_daily, elevation  # Use real elevation extracted before raise_for_status()
+
+
 
 
 def distance_to_coast_km(lat, lon):
@@ -623,25 +626,34 @@ async def fetch_weather_and_elevation(lat: float, lon: float, target_date: date 
             ),
         )
 
+    # ── Always extract elevation first (lightweight API, rarely fails) ──
+    fallback_elevation = 200.0  # neutral mid-India default
+    if elev_resp.status_code == 200:
+        try:
+            elevs = elev_resp.json().get("elevation", [200.0])
+            fallback_elevation = float(elevs[0]) if elevs else 200.0
+        except Exception:
+            pass  # keep default
+
     if archive_resp.status_code != 200 or forecast_resp.status_code != 200:
-        print(f"⚠️ Open-Meteo API Error (Rate Limit). USING FALLBACK DEMO DATA.")
+        print(f"⚠️ Open-Meteo API Error (archive={archive_resp.status_code}, forecast={forecast_resp.status_code}). USING FALLBACK DEMO DATA. Elevation={fallback_elevation}m (real).")
         dates = [(start - timedelta(days=7 - i)).isoformat() for i in range(14)]
+        # Warmup days (0-6) have moderate weather; forecast days (7-13) are calm
+        # This prevents phantom trigger activations during demo fallback mode
         mock_daily = {
             "time": dates,
-            "precipitation_sum": [0.0, 1.2, 0.0, 0.0, 15.5, 45.0, 110.0, 50.0, 12.0, 0.0, 0.0, 2.0, 0.0, 0.0],
-            "temperature_2m_max": [35.0, 34.5, 38.0, 39.5, 31.0, 29.0, 28.0, 30.0, 32.5, 34.0, 35.5, 33.0, 36.0, 37.0],
-            "apparent_temperature_max": [38.0, 37.0, 42.0, 44.5, 34.0, 32.0, 30.0, 33.0, 35.0, 38.0, 40.0, 37.0, 41.0, 42.0],
-            "wind_speed_10m_max": [10.0, 12.0, 8.0, 15.0, 25.0, 40.0, 55.0, 30.0, 15.0, 10.0, 12.0, 14.0, 8.0, 10.0],
-            "wind_gusts_10m_max": [15.0, 18.0, 12.0, 22.0, 35.0, 55.0, 75.0, 45.0, 25.0, 15.0, 18.0, 20.0, 12.0, 15.0],
-            "shortwave_radiation_sum": [22.0, 20.0, 24.0, 25.0, 15.0, 8.0, 5.0, 12.0, 18.0, 21.0, 23.0, 20.0, 25.0, 24.0],
-            "precipitation_hours": [1.0, 2.0, 0.0, 0.0, 4.0, 12.0, 18.0, 8.0, 3.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            "precipitation_sum": [0.0, 1.2, 0.0, 0.0, 5.0, 2.0, 0.0,   0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            "temperature_2m_max": [35.0, 34.5, 36.0, 37.0, 35.0, 34.0, 35.0,   35.0, 36.0, 35.5, 36.0, 35.0, 36.0, 37.0],
+            "apparent_temperature_max": [38.0, 37.0, 39.0, 40.0, 38.0, 37.0, 38.0,   38.0, 39.0, 38.5, 39.0, 38.0, 39.0, 40.0],
+            "wind_speed_10m_max": [10.0, 12.0, 8.0, 15.0, 12.0, 10.0, 8.0,   10.0, 12.0, 10.0, 11.0, 9.0, 8.0, 10.0],
+            "wind_gusts_10m_max": [15.0, 18.0, 12.0, 22.0, 18.0, 15.0, 12.0,   15.0, 18.0, 16.0, 17.0, 14.0, 12.0, 15.0],
+            "shortwave_radiation_sum": [22.0, 20.0, 24.0, 25.0, 22.0, 23.0, 24.0,   23.0, 24.0, 22.0, 23.0, 24.0, 25.0, 24.0],
+            "precipitation_hours": [0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         }
-        return mock_daily, 20.0
+        return mock_daily, fallback_elevation
 
-    elevation = 100.0
-    if elev_resp.status_code == 200:
-        elevs = elev_resp.json().get("elevation", [100.0])
-        elevation = float(elevs[0]) if elevs else 100.0
+    # Elevation was already extracted above into fallback_elevation
+    elevation = fallback_elevation
 
     archive_daily = archive_resp.json().get("daily", {})
     forecast_daily = forecast_resp.json().get("daily", {})
