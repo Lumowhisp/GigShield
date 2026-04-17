@@ -2156,6 +2156,230 @@ async def autopay_trigger_scan():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ADMIN DASHBOARD API ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+ADMIN_CREDENTIALS = {"admin@gigguard.in": "GigGuard@2026"}
+
+def verify_admin_token(request: Request):
+    """Verify the request carries a valid admin JWT."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing admin token")
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required")
+        return payload
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+
+
+@app.post("/admin/login")
+async def admin_login(req: AuthRequest):
+    """Authenticate admin user with hardcoded credentials (hackathon demo)."""
+    if req.email in ADMIN_CREDENTIALS and req.password == ADMIN_CREDENTIALS[req.email]:
+        token = create_access_token(data={"sub": "admin", "role": "admin", "email": req.email})
+        return {"status": "success", "access_token": token, "role": "admin", "email": req.email}
+    raise HTTPException(status_code=401, detail="Invalid admin credentials")
+
+
+@app.get("/admin/dashboard")
+async def admin_dashboard_stats(request: Request):
+    """Aggregate platform stats for the admin dashboard."""
+    verify_admin_token(request)
+    db = request.app.mongodb
+    users_cursor = db["users"].find({})
+    users = await users_cursor.to_list(length=1000)
+
+    now = datetime.now(timezone.utc)
+    total_users = len(users)
+    active_policies = 0
+    total_premium = 0.0
+    total_payouts_amount = 0.0
+    tier_distribution = {"basic": 0, "standard": 0, "premium": 0}
+    trust_distribution = {"veteran": 0, "trusted": 0, "neutral": 0, "suspicious": 0}
+    all_payouts = []
+    trigger_frequency = {}
+    daily_payouts = {}
+    daily_premiums = {}
+
+    for u in users:
+        # Active policy check
+        ap = u.get("active_policy")
+        if ap and ap.get("status") == "active":
+            expires_at = ap.get("expires_at")
+            if expires_at and isinstance(expires_at, datetime):
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if expires_at > now:
+                    active_policies += 1
+
+        # Policy history
+        for p in u.get("policy_history", []):
+            total_premium += p.get("premium_paid", 0)
+            tier = p.get("tier", "basic")
+            tier_distribution[tier] = tier_distribution.get(tier, 0) + 1
+            activated = p.get("activated_at")
+            if isinstance(activated, datetime):
+                day_key = activated.strftime("%Y-%m-%d")
+                daily_premiums[day_key] = daily_premiums.get(day_key, 0) + p.get("premium_paid", 0)
+
+        # Payout history
+        for p in u.get("payout_history", []):
+            total_payouts_amount += p.get("amount", 0)
+            payout_entry = {
+                "payout_id": p.get("payout_id", ""),
+                "amount": p.get("amount", 0),
+                "trigger_name": p.get("trigger_name", "Unknown"),
+                "paid_at": p.get("paid_at").isoformat() if isinstance(p.get("paid_at"), datetime) else str(p.get("paid_at", "")),
+                "status": p.get("status", "unknown"),
+                "user_email": u.get("email", "unknown"),
+                "autopay": p.get("autopay", False),
+                "fraud_score": p.get("fraud_score_at_settlement", 0),
+            }
+            all_payouts.append(payout_entry)
+            trigger = p.get("trigger_name", "Unknown")
+            trigger_frequency[trigger] = trigger_frequency.get(trigger, 0) + 1
+            paid_at = p.get("paid_at")
+            if isinstance(paid_at, datetime):
+                day_key = paid_at.strftime("%Y-%m-%d")
+                daily_payouts[day_key] = daily_payouts.get(day_key, 0) + p.get("amount", 0)
+
+        # Trust distribution
+        ts = u.get("trust_score", 50)
+        if ts >= 80:
+            trust_distribution["veteran"] += 1
+        elif ts >= 50:
+            trust_distribution["trusted"] += 1
+        elif ts >= 25:
+            trust_distribution["neutral"] += 1
+        else:
+            trust_distribution["suspicious"] += 1
+
+    loss_ratio = total_payouts_amount / total_premium if total_premium > 0 else 0
+    all_payouts.sort(key=lambda x: x.get("paid_at", ""), reverse=True)
+    sorted_daily_payouts = [{"date": k, "amount": v} for k, v in sorted(daily_payouts.items())]
+    sorted_daily_premiums = [{"date": k, "amount": v} for k, v in sorted(daily_premiums.items())]
+    trigger_freq_list = [{"trigger": k, "count": v} for k, v in sorted(trigger_frequency.items(), key=lambda x: x[1], reverse=True)]
+
+    return {
+        "total_users": total_users,
+        "active_policies": active_policies,
+        "total_premium_collected": round(total_premium, 2),
+        "total_payouts_settled": round(total_payouts_amount, 2),
+        "loss_ratio": round(loss_ratio, 4),
+        "tier_distribution": tier_distribution,
+        "trust_distribution": trust_distribution,
+        "recent_payouts": all_payouts[:20],
+        "daily_payouts": sorted_daily_payouts[-30:],
+        "daily_premiums": sorted_daily_premiums[-30:],
+        "trigger_frequency": trigger_freq_list,
+        "model_r2": MODEL_META.get("test_r2", 0),
+        "model_version": MODEL_META.get("version", "unknown"),
+        "model_features": len(FEATURE_COLS),
+        "circuit_breaker_active": GLOBAL_PAYOUT_FREEZE,
+    }
+
+
+@app.get("/admin/users")
+async def admin_list_users(request: Request):
+    """List all registered users with policy and payout summaries."""
+    verify_admin_token(request)
+    db = request.app.mongodb
+    users = await db["users"].find({}).to_list(length=1000)
+    now = datetime.now(timezone.utc)
+    result = []
+    for u in users:
+        ap = u.get("active_policy")
+        policy_status = "none"
+        policy_tier = "-"
+        if ap:
+            expires_at = ap.get("expires_at")
+            if expires_at and isinstance(expires_at, datetime):
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                policy_status = "active" if expires_at > now else "expired"
+            policy_tier = ap.get("tier", "-")
+        result.append({
+            "id": str(u["_id"]),
+            "email": u.get("email", ""),
+            "name": u.get("name", ""),
+            "gig_rider_id": u.get("gig_rider_id", ""),
+            "trust_score": u.get("trust_score", 50),
+            "policy_status": policy_status,
+            "policy_tier": policy_tier,
+            "total_policies": len(u.get("policy_history", [])),
+            "total_payouts": len(u.get("payout_history", [])),
+            "total_payout_amount": sum(p.get("amount", 0) for p in u.get("payout_history", [])),
+            "total_premium_paid": sum(p.get("premium_paid", 0) for p in u.get("policy_history", [])),
+            "gig_verified": u.get("gig_verified", False),
+            "created_at": u.get("created_at").isoformat() if isinstance(u.get("created_at"), datetime) else str(u.get("created_at", "")),
+            "last_location": {"lat": u.get("last_latitude"), "lon": u.get("last_longitude")} if u.get("last_latitude") else None,
+        })
+    return {"users": result, "total": len(result)}
+
+
+@app.get("/admin/risk-forecast")
+async def admin_risk_forecast(request: Request):
+    """7-day predictive risk forecast for admin analytics (uses Delhi NCR as reference)."""
+    verify_admin_token(request)
+    lat, lon = 28.6139, 77.2090
+    target = date.today()
+    weather, elevation = await fetch_weather_and_elevation(lat, lon, target)
+    dist_coast = distance_to_coast_km(lat, lon)
+    coastal = 1 if dist_coast < 80 else 0
+    zone_safety = compute_zone_safety_score(elevation, dist_coast, bool(coastal))
+    X_forecast, forecast_df = build_inference_features(
+        weather, lat, lon, elevation, dist_coast, coastal, zone_safety["zone_safety_score"],
+    )
+    for col in FEATURE_COLS:
+        if col not in X_forecast.columns:
+            X_forecast[col] = 0
+    X_matrix = X_forecast[FEATURE_COLS].fillna(0).values
+    if X_matrix.shape[1] < len(MODEL.feature_importances_):
+        diff = len(MODEL.feature_importances_) - X_matrix.shape[1]
+        X_matrix = np.hstack([X_matrix, np.zeros((X_matrix.shape[0], diff))])
+    day_preds = MODEL.predict(X_matrix).clip(0)
+
+    forecast_triggers = []
+    for idx, (_, row) in enumerate(forecast_df.iterrows()):
+        day_result = evaluate_all_triggers(
+            precipitation_mm=float(row.get("precipitation_sum", 0)),
+            temp_max=float(row.get("temperature_2m_max", 30)),
+            apparent_temp_max=float(row.get("apparent_temperature_max", 32)),
+            wind_speed_max=float(row.get("wind_speed_10m_max", 10)),
+            wind_gust_max=float(row.get("wind_gusts_10m_max", 15)),
+            shortwave_radiation_mj=float(row.get("shortwave_radiation_sum", 15)),
+            rolling_7d_rain_mm=float(row.get("rolling_7d_rain", 0)),
+            rolling_3d_temp=float(row.get("rolling_3d_temp", 30)),
+            elevation_m=elevation,
+            distance_to_coast_km=dist_coast,
+            is_coastal=bool(coastal),
+            latitude=lat,
+            longitude=lon,
+        )
+        active_triggers = [t.trigger_name for t in day_result["triggers"] if t.active]
+        forecast_triggers.append({
+            "day": idx,
+            "date": (target + timedelta(days=idx)).isoformat(),
+            "loss_ratio": round(float(day_preds[idx]) if idx < len(day_preds) else 0, 4),
+            "active_triggers": active_triggers,
+            "n_triggers": len(active_triggers),
+            "compound_severity": day_result["compound_severity"],
+        })
+
+    return {
+        "location": {"lat": lat, "lon": lon, "name": "Delhi NCR"},
+        "forecast": forecast_triggers,
+        "avg_loss_ratio": round(float(np.mean(day_preds)), 4),
+        "zone_safety": zone_safety,
+        "elevation_m": elevation,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # RUN
 # ─────────────────────────────────────────────────────────────────────────────
 
