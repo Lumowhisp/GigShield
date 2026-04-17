@@ -29,7 +29,7 @@ To deeply understand the core architecture of the codebase, please review our ex
 
 **For Judges:  Instant Live Testing**
 We have provided a direct, pre-built Android APK link so you can test the application live on your phone without installing any SDKs or development environments:
-👉 **[Download the GigGuard Android APK Here](https://expo.dev/accounts/geek_aditya/projects/gigguard/builds/9da35338-6468-4205-842a-5bf486f62edb)**
+👉 **[Download the GigGuard Android APK Here](https://expo.dev/accounts/geek_aditya/projects/gigguard/builds/570f8f61-e74e-42b4-81a1-1d3075780bf0)**
 
 Alternatively, if you wish to run the code manually, the Mobile App is pre-configured to connect to our live production AI model and database hosted on Render (`https://gigshield-4u5z.onrender.com`). **You only need to run the Mobile App locally to fully test the platform.** We have provided the backend code for full transparency.
 
