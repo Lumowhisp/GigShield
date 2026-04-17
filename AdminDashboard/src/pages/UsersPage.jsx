@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { fetchUsers } from '../api';
+import { Users, Search, MapPin, CheckCircle2, XCircle } from 'lucide-react';
 
 function getTrustTier(score) {
-  if (score >= 80) return { label: 'Veteran', cls: 'veteran', emoji: '🟢' };
-  if (score >= 50) return { label: 'Trusted', cls: 'trusted', emoji: '🔵' };
-  if (score >= 25) return { label: 'Neutral', cls: 'neutral', emoji: '🟡' };
-  return { label: 'Suspicious', cls: 'suspicious', emoji: '🔴' };
+  if (score >= 80) return { label: 'Veteran', cls: 'veteran', icon: '●' };
+  if (score >= 50) return { label: 'Trusted', cls: 'trusted', icon: '●' };
+  if (score >= 25) return { label: 'Neutral', cls: 'neutral', icon: '●' };
+  return { label: 'Suspicious', cls: 'suspicious', icon: '●' };
 }
 
 export default function UsersPage() {
@@ -53,13 +54,17 @@ export default function UsersPage() {
   return (
     <div className="page-container">
       <div className="page-header animate-in">
-        <h1>👥 Users & Policies</h1>
+        <h1>
+          <Users size={28} className="header-icon" />
+          Users & Policies
+        </h1>
         <p>Manage all registered riders, trust scores, and policy statuses</p>
       </div>
 
       <div className="table-container animate-in delay-2">
         <div className="table-toolbar">
           <div className="search-wrapper">
+            <Search size={14} className="search-icon" />
             <input
               className="search-input"
               type="text"
@@ -68,7 +73,7 @@ export default function UsersPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
             {filtered.length} of {users.length} users
           </div>
         </div>
@@ -105,7 +110,7 @@ export default function UsersPage() {
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{u.gig_rider_id || '-'}</td>
                     <td>
                       <span className={`trust-badge ${tier.cls}`}>
-                        {tier.emoji} {u.trust_score?.toFixed(0)}/100
+                        {tier.icon} {u.trust_score?.toFixed(0)}/100
                       </span>
                     </td>
                     <td>
@@ -118,9 +123,19 @@ export default function UsersPage() {
                     <td style={{ fontFamily: 'var(--font-mono)', color: u.total_payout_amount > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
                       ₹{u.total_payout_amount?.toFixed(0)}
                     </td>
-                    <td>{u.gig_verified ? '✅' : '❌'}</td>
-                    <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {u.last_location ? `${u.last_location.lat?.toFixed(2)}, ${u.last_location.lon?.toFixed(2)}` : '-'}
+                    <td style={{ textAlign: 'center' }}>
+                      {u.gig_verified
+                        ? <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />
+                        : <XCircle size={16} style={{ color: 'var(--danger)' }} />
+                      }
+                    </td>
+                    <td style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {u.last_location ? (
+                        <>
+                          <MapPin size={12} />
+                          {u.last_location.lat?.toFixed(2)}, {u.last_location.lon?.toFixed(2)}
+                        </>
+                      ) : '-'}
                     </td>
                   </tr>
                 );

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import logoFinal from '../assets/logoFinal.png';
 import { adminLogin } from '../api';
+import { Lock, AlertTriangle, Loader } from 'lucide-react';
 
 export default function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -28,12 +30,19 @@ export default function LoginPage({ onLogin }) {
     <div className="login-page">
       <div className="login-card animate-in">
         <div className="login-brand">
-          <div className="login-brand-icon">🛡️</div>
+          <div className="login-brand-icon" style={{ background: 'transparent', boxShadow: 'none' }}>
+            <img src={logoFinal} alt="GigGuard Logo" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
+          </div>
           <h1>GigGuard Admin</h1>
           <p>Insurer Operations & Analytics Console</p>
         </div>
 
-        {error && <div className="login-error">⚠️ {error}</div>}
+        {error && (
+          <div className="login-error">
+            <AlertTriangle size={16} />
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -60,7 +69,17 @@ export default function LoginPage({ onLogin }) {
             />
           </div>
           <button className="login-btn" type="submit" disabled={loading}>
-            {loading ? '⏳ Authenticating...' : '🔐 Sign In to Console'}
+            {loading ? (
+              <>
+                <Loader size={16} className="spin-icon" />
+                Authenticating...
+              </>
+            ) : (
+              <>
+                <Lock size={16} />
+                Sign In to Console
+              </>
+            )}
           </button>
         </form>
 
