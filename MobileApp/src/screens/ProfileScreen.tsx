@@ -123,8 +123,17 @@ export default function ProfileScreen({ navigation }: any) {
         gig_verified: gigVerified
       };
       
-      await updateUserProfile(updateData);
-      Alert.alert('Success', 'Profile updated successfully!');
+      const res = await updateUserProfile(updateData);
+      
+      // Refetch profile to instantly show newly earned trust score/tier
+      await loadProfile();
+
+      if (res.trust_bonuses && res.trust_bonuses.length > 0) {
+        const msg = res.trust_bonuses.map((b: any) => `+${b.delta} pts: ${b.reason}`).join('\n');
+        Alert.alert('Trust Increased! 🎉', msg);
+      } else {
+        Alert.alert('Success', 'Profile updated successfully!');
+      }
     } catch (error: any) {
       console.error('Update profile error', error);
       Alert.alert('Error', error.message || 'Failed to update profile');
@@ -139,8 +148,18 @@ export default function ProfileScreen({ navigation }: any) {
     setIsVerifying(true);
     setTimeout(async () => {
       try {
-        await updateUserProfile({ gig_verified: true, gig_id: gigId });
+        const res = await updateUserProfile({ gig_verified: true, gig_id: gigId });
         setGigVerified(true);
+        
+        // Refetch profile to instantly show newly earned trust score/tier
+        await loadProfile();
+
+        if (res.trust_bonuses && res.trust_bonuses.length > 0) {
+          const msg = res.trust_bonuses.map((b: any) => `+${b.delta} pts: ${b.reason}`).join('\n');
+          Alert.alert('Trust Earned! 🛡️', msg);
+        } else {
+          Alert.alert('Verified', 'Gig Worker ID verified successfully.');
+        }
       } catch (error) {
         console.error("Verification sync failed", error);
         Alert.alert("Sync Error", "Verification succeeded locally but failed to sync to the server.");
@@ -335,44 +354,112 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* ── Verification Card ── */}
+
+
+        {/* ── Trust Score Education Card ── */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={colors.orange} />
-            <Text style={styles.cardTitle}>Gig Worker Verification</Text>
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.aqua} />
+            <Text style={styles.cardTitle}>Your Trust Score</Text>
           </View>
           <Text style={styles.cardSub}>
-            Enter your platform ID (e.g., <Text style={{fontWeight: 'bold', color: colors.orange}}>GG-2024-XXXX</Text>)
+            Your trust score determines payout speed, vesting periods, and fraud check intensity
           </Text>
-          
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. GG-2024-1234"
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            value={gigId}
-            onChangeText={setGigId}
-            editable={!gigVerified}
-          />
-          
-          <TouchableOpacity 
-            style={[styles.verifyButton, gigVerified && styles.buttonSuccess]} 
-            onPress={handleVerifyGig}
-            disabled={isVerifying || gigVerified || !gigId}
-          >
-            {isVerifying ? (
-              <ActivityIndicator color="#000" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {gigVerified ? '✅ VERIFIED STATUS' : 'VERIFY NOW'}
-              </Text>
-            )}
-          </TouchableOpacity>
 
-          {/* ── Hackathon Notice ── */}
-          <View style={styles.noticeContainer}>
-            <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
-            <Text style={styles.noticeText}>
-              HACKATHON DEMO: Automated verification active. Real-world builds will authenticate via Swiggy/Zomato/Uber partner APIs.
+          {/* Current Score Display */}
+          <View style={styles.trustScoreDisplay}>
+            <View style={styles.trustScoreCircle}>
+              <Text style={[
+                styles.trustScoreNumber,
+                { color: trustScore >= 80 ? colors.success : trustScore >= 50 ? colors.aqua : trustScore >= 25 ? colors.orange : colors.danger }
+              ]}>
+                {trustScore}
+              </Text>
+              <Text style={styles.trustScoreMax}>/100</Text>
+            </View>
+            <View style={styles.trustScoreTier}>
+              <Text style={[styles.trustTierLabel, {
+                color: trustScore >= 80 ? colors.success : trustScore >= 50 ? colors.aqua : trustScore >= 25 ? colors.orange : colors.danger
+              }]}>
+                {trustScore >= 80 ? '🟢 VETERAN' : trustScore >= 50 ? '🔵 TRUSTED' : trustScore >= 25 ? '🟡 NEUTRAL' : '🔴 SUSPICIOUS'}
+              </Text>
+              <Text style={styles.trustTierDesc}>
+                {trustScore >= 80
+                  ? '2h vesting • Light fraud checks • Priority payouts'
+                  : trustScore >= 50
+                    ? '4h vesting • Standard fraud checks'
+                    : trustScore >= 25
+                      ? '8h vesting • Full fraud checks + Flagged'
+                      : '24h vesting • Full checks + Payouts blocked'
+                }
+              </Text>
+            </View>
+          </View>
+
+          {/* Trust Score Progress Bar */}
+          <View style={styles.trustBarContainer}>
+            <View style={styles.trustBarBg}>
+              <View style={[styles.trustBarFill, {
+                width: `${trustScore}%`,
+                backgroundColor: trustScore >= 80 ? colors.success : trustScore >= 50 ? colors.aqua : trustScore >= 25 ? colors.orange : colors.danger,
+              }]} />
+            </View>
+            <View style={styles.trustBarLabels}>
+              <Text style={[styles.trustBarLabel, { color: colors.danger }]}>0</Text>
+              <Text style={[styles.trustBarLabel, { color: colors.orange }]}>25</Text>
+              <Text style={[styles.trustBarLabel, { color: colors.aqua }]}>50</Text>
+              <Text style={[styles.trustBarLabel, { color: colors.success }]}>80</Text>
+              <Text style={[styles.trustBarLabel, { color: colors.success }]}>100</Text>
+            </View>
+          </View>
+
+          {/* How to EARN trust */}
+          <View style={styles.trustSection}>
+            <View style={styles.trustSectionHeader}>
+              <Ionicons name="trending-up" size={16} color={colors.success} />
+              <Text style={[styles.trustSectionTitle, { color: colors.success }]}>How to Earn Trust</Text>
+            </View>
+            {[
+              { icon: '✅', text: 'Clean payout settlement', points: '+3 pts', color: colors.success },
+              { icon: '📍', text: 'Consistent GPS location', points: '+2 pts', color: colors.success },
+              { icon: '🛡️', text: 'Verify Gig Worker ID', points: '+10 pts', color: colors.success },
+              { icon: '📝', text: 'Complete Profile Details', points: '+5 pts', color: colors.success },
+              { icon: '📅', text: 'No-claim week (honest use)', points: '+1 pt', color: colors.success },
+            ].map((item, i) => (
+              <View key={i} style={styles.trustRuleRow}>
+                <Text style={styles.trustRuleIcon}>{item.icon}</Text>
+                <Text style={styles.trustRuleText}>{item.text}</Text>
+                <Text style={[styles.trustRulePoints, { color: item.color }]}>{item.points}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* How to LOSE trust */}
+          <View style={styles.trustSection}>
+            <View style={styles.trustSectionHeader}>
+              <Ionicons name="trending-down" size={16} color={colors.danger} />
+              <Text style={[styles.trustSectionTitle, { color: colors.danger }]}>What Costs Trust</Text>
+            </View>
+            {[
+              { icon: '🚨', text: 'High fraud score (≥60)', points: '−25 pts', color: colors.danger },
+              { icon: '⚠️', text: 'Moderate fraud flag (≥30)', points: '−10 pts', color: colors.orange },
+              { icon: '📍', text: 'GPS teleportation (>40km)', points: '−25 pts', color: colors.danger },
+              { icon: '🌐', text: 'VPN/proxy detected', points: '−15 pts', color: colors.danger },
+              { icon: '⏱️', text: 'Irregular location pings', points: '−5 pts', color: colors.orange },
+            ].map((item, i) => (
+              <View key={i} style={styles.trustRuleRow}>
+                <Text style={styles.trustRuleIcon}>{item.icon}</Text>
+                <Text style={styles.trustRuleText}>{item.text}</Text>
+                <Text style={[styles.trustRulePoints, { color: item.color }]}>{item.points}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Benefits unlock card */}
+          <View style={styles.trustBenefitsCard}>
+            <Ionicons name="gift-outline" size={18} color={colors.aqua} />
+            <Text style={styles.trustBenefitsText}>
+              Higher trust = faster payouts, lower vesting delays, and lighter verification checks. Note: Your first coverage always activates in just 2 hours!
             </Text>
           </View>
         </View>
@@ -834,5 +921,126 @@ const styles = StyleSheet.create({
   dateText: {
     color: colors.textPrimary,
     fontSize: 14,
+  },
+
+  // Trust Score Education
+  trustScoreDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  trustScoreCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trustScoreNumber: {
+    fontSize: 26,
+    fontWeight: fontWeight.heavy,
+  },
+  trustScoreMax: {
+    fontSize: 10,
+    color: colors.textMuted,
+    marginTop: -2,
+  },
+  trustScoreTier: {
+    flex: 1,
+  },
+  trustTierLabel: {
+    fontSize: 14,
+    fontWeight: fontWeight.heavy,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  trustTierDesc: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 16,
+  },
+  trustBarContainer: {
+    marginBottom: 20,
+  },
+  trustBarBg: {
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  trustBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  trustBarLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  trustBarLabel: {
+    fontSize: 9,
+    fontWeight: fontWeight.bold,
+  },
+  trustSection: {
+    marginBottom: 16,
+  },
+  trustSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+  trustSectionTitle: {
+    fontSize: 13,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 0.5,
+  },
+  trustRuleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 10,
+  },
+  trustRuleIcon: {
+    fontSize: 16,
+    width: 24,
+    textAlign: 'center',
+  },
+  trustRuleText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  trustRulePoints: {
+    fontSize: 12,
+    fontWeight: fontWeight.heavy,
+    letterSpacing: 0.5,
+  },
+  trustBenefitsCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: 'rgba(0, 229, 255, 0.06)',
+    borderRadius: borderRadius.md,
+    padding: 14,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.12)',
+  },
+  trustBenefitsText: {
+    flex: 1,
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 16,
   },
 });

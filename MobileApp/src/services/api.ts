@@ -5,8 +5,8 @@
 
 import Constants from 'expo-constants';
 
-const BASE_URL = 'https://gigshield-4u5z.onrender.com'; // Production/Render
-// const BASE_URL = 'http://10.150.223.37:8000'; // Local Testing
+export const BASE_URL = 'https://gigshield-4u5z.onrender.com'; // Production/Render
+// export const BASE_URL = 'http://10.150.223.37:8000'; // Local Testing
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -199,6 +199,36 @@ export async function fetchPremium(
     throw new Error(`API Error ${response.status}: ${errorText}`);
   }
 
+  return response.json();
+}
+
+export async function fetchSimulatedPremium(
+  latitude: number,
+  longitude: number,
+  dailyInc: number,
+  overrides: { rain: number; temp: number; wind: number }
+): Promise<PremiumResponse> {
+  const token = await getToken();
+  const headers: any = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(`${BASE_URL}/premium/simulate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      latitude,
+      longitude,
+      daily_income: dailyInc,
+      override_rain_mm: overrides.rain,
+      override_temp_c: overrides.temp,
+      override_wind_kmh: overrides.wind,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to simulate premium quote');
+  }
   return response.json();
 }
 
@@ -465,4 +495,3 @@ export async function verifyRazorpayOrder(orderId: string): Promise<{
   return response.json();
 }
 
-export { BASE_URL };

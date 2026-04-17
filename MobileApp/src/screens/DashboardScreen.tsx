@@ -11,7 +11,7 @@ import CityAlertsFeed from '../components/CityAlertsFeed';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { PremiumResponse, TriggerInfo, UserProfile } from '../services/api';
-import { fetchUserProfile, simulatePayout, updateUserLocation, registerPushToken } from '../services/api';
+import { fetchUserProfile, simulatePayout, updateUserLocation, registerPushToken, fetchSimulatedPremium } from '../services/api';
 import * as Location from 'expo-location';
 import GigBotModal from '../components/GigBotModal';
 import type { RootStackParamList, BottomTabParamList } from '../../App';
@@ -49,7 +49,8 @@ const getWeatherLottie = (code: number) => {
 };
 
 export default function DashboardScreen({ route, navigation }: Props) {
-  const { premiumData, activePlan } = route.params;
+  const { premiumData: routePremiumData, activePlan } = route.params;
+  const [premiumData, setPremiumData] = useState<PremiumResponse>(routePremiumData);
   const planDetails = premiumData.plans[activePlan];
   const planColor = PLAN_COLORS[activePlan] || colors.orange;
   const [isSimulating, setIsSimulating] = useState(false);
@@ -58,9 +59,119 @@ export default function DashboardScreen({ route, navigation }: Props) {
   const [showNotification, setShowNotification] = useState(false);
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [showAllTriggers, setShowAllTriggers] = useState(false);
+
+  // ── Simulator State ──
+  const [simulatorMode, setSimulatorMode] = useState(false);
+  const [simRain, setSimRain] = useState(0);
+  const [simTemp, setSimTemp] = useState(30);
+  const [simWind, setSimWind] = useState(15);
+  const [isSimLoading, setIsSimLoading] = useState(false);
+  const [pipelineLog, setPipelineLog] = useState<{step: string; status: 'pass'|'fail'|'warn'|'pending'}[]>([]);
+  const [isAutopaying, setIsAutopaying] = useState(false);
+  const [autopayResult, setAutopayResult] = useState<any>(null);
+
+  // ── Simulator Effect ──
+  useEffect(() => {
+    if (!simulatorMode) return;
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSimLoading(true);
+      try {
+        const newData = await fetchSimulatedPremium(
+          premiumData.latitude, 
+          premiumData.longitude, 
+          (premiumData as any).daily_income || (premiumData as any).daily_income_inr || 800, 
+          { rain: simRain, temp: simTemp, wind: simWind }
+        );
+        setPremiumData(newData);
+      } catch (e) {
+        console.error("Simulator API Error", e);
+      } finally {
+        setIsSimLoading(false);
+      }
+    }, 400); // 400ms debounce
+    return () => clearTimeout(delayDebounceFn);
+  }, [simRain, simTemp, simWind, simulatorMode, premiumData.latitude, premiumData.longitude]);
+
+  const handleToggleSimulator = () => {
+    if (simulatorMode) {
+      setSimulatorMode(false);
+      setPremiumData(routePremiumData); // Revert to real weather
+      setSimRain(0);
+      setSimTemp(30);
+      setSimWind(15);
+    } else {
+      setSimulatorMode(true);
+      // Initialize with current parsed weather to avoid jolts
+      setSimRain(premiumData.today_weather?.precipitation_mm || 0);
+      setSimTemp(premiumData.today_weather?.temp_max_c || 30);
+      setSimWind(premiumData.today_weather?.wind_speed_max_kmh || 15);
+      setPipelineLog([]);
+      setAutopayResult(null);
+    }
+  };
+
+  const PIPELINE_STEPS = [
+    '1. JWT Auth Verification',
+    '2. Active Policy + Expiry Check',
+    '3. Trust-Tier Vesting Enforcement',
+    '4. SUSPICIOUS Tier Gate',
+    '5. Duplicate Claim Anti-Farm Check',
+    '6. Composite Fraud Engine (GPS, IP, Behavioral)',
+    '7. Global Velocity Circuit Breaker (₹50k/5min)',
+    '8. Settlement Transfer + Trust Reward (+3)',
+  ];
+
+  const handleForceAutopay = async () => {
+    setIsAutopaying(true);
+    setAutopayResult(null);
+    setPipelineLog([]);
+
+    // Animate steps one by one
+    for (let i = 0; i < PIPELINE_STEPS.length; i++) {
+      setPipelineLog(prev => [...prev, { step: PIPELINE_STEPS[i], status: 'pending' }]);
+      await new Promise(r => setTimeout(r, 350));
+    }
+
+    // Now actually fire the real backend
+    const payoutAmt = Math.round(planDetails.expected_weekly_payout_inr);
+    const triggerLabel = premiumData.all_triggers_today?.find((t: any) => t.active)?.trigger_name || 'Heavy Rain (>15mm/hr)';
+
+    try {
+      const res = await simulatePayout(payoutAmt, triggerLabel);
+      // All steps passed
+      setPipelineLog(PIPELINE_STEPS.map(s => ({ step: s, status: 'pass' as const })));
+      setAutopayResult({ success: true, data: res });
+      // Trigger the notification popup + refresh profile for passbook
+      triggerNotification();
+      fetchUserProfile().then(setProfile).catch(() => {});
+    } catch (err: any) {
+      const msg = err.message || 'Unknown error';
+      // Figure out which step failed based on error message
+      let failIdx = PIPELINE_STEPS.length - 1;
+      if (msg.includes('token') || msg.includes('auth')) failIdx = 0;
+      else if (msg.includes('No active policy') || msg.includes('expired')) failIdx = 1;
+      else if (msg.includes('activating') || msg.includes('vesting') || msg.includes('activation')) failIdx = 2;
+      else if (msg.includes('SUSPICIOUS') || msg.includes('blocked') && msg.includes('trust')) failIdx = 3;
+      else if (msg.includes('Duplicate')) failIdx = 4;
+      else if (msg.includes('Fraud') || msg.includes('teleportation') || msg.includes('Location')) failIdx = 5;
+      else if (msg.includes('Circuit') || msg.includes('velocity') || msg.includes('freeze')) failIdx = 6;
+
+      setPipelineLog(PIPELINE_STEPS.map((s, i) => ({
+        step: s,
+        status: i < failIdx ? 'pass' as const : i === failIdx ? 'fail' as const : 'pending' as const,
+      })));
+      setAutopayResult({ success: false, error: msg });
+    } finally {
+      setIsAutopaying(false);
+    }
+  };
+  const [vestingSeconds, setVestingSeconds] = useState<number>(0);
+  const [vestingTotal, setVestingTotal] = useState<number>(0);
+  const [isFirstPolicy, setIsFirstPolicy] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const noteAnim = useRef(new Animated.Value(-100)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
@@ -73,9 +184,17 @@ export default function DashboardScreen({ route, navigation }: Props) {
       });
     }
 
-    // Fetch profile for policy info
+    // Fetch profile for policy info + vesting status
     fetchUserProfile()
-      .then(setProfile)
+      .then((data) => {
+        setProfile(data);
+        // Initialize vesting countdown from server data
+        if (data?.vesting_status?.vesting_active) {
+          setVestingSeconds(data.vesting_status.seconds_remaining || 0);
+          setVestingTotal(data.vesting_status.hours_total || 2);
+          setIsFirstPolicy(data.vesting_status.is_first_policy || false);
+        }
+      })
       .catch((err: any) => console.error("Profile fetch failed", err));
 
     // Sync user GPS location to backend for autopay scheduler
@@ -122,7 +241,39 @@ export default function DashboardScreen({ route, navigation }: Props) {
         Animated.timing(glowAnim, { toValue: 0, duration: 2000, useNativeDriver: false }),
       ])
     ).start();
+
+    // Pulse animation for vesting timer
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.3, duration: 1000, useNativeDriver: true }),
+      ])
+    ).start();
   }, []);
+
+  // Vesting countdown timer — ticks every second
+  useEffect(() => {
+    if (vestingSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setVestingSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [vestingSeconds > 0]);
+
+  const formatCountdown = (totalSec: number) => {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const vestingProgress = vestingTotal > 0 ? Math.max(0, 1 - (vestingSeconds / (vestingTotal * 3600))) : 1;
 
   const fr = premiumData.forecast_risk;
   const triggers = premiumData.all_triggers_today || [];
@@ -311,6 +462,186 @@ export default function DashboardScreen({ route, navigation }: Props) {
                 </View>
               </View>
             </TouchableOpacity>
+          )}
+
+          {/* ── Vesting Activation Timer ── */}
+          {vestingSeconds > 0 && (
+            <View style={styles.vestingBanner}>
+              <View style={styles.vestingContent}>
+                <View style={styles.vestingIconRow}>
+                  <Animated.View style={[styles.vestingPulse, { opacity: pulseAnim }]} />
+                  <Ionicons name="hourglass-outline" size={22} color={colors.aqua} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={styles.vestingTitle}>
+                    {isFirstPolicy ? '🎉 Welcome! Plan Activating...' : '🛡️ Plan Activating...'}
+                  </Text>
+                  <Text style={styles.vestingSubtitle}>
+                    {isFirstPolicy
+                      ? 'Your first coverage! Fast 2h activation period.'
+                      : `${vestingTotal}h activation period for your trust tier.`}
+                  </Text>
+                  {/* Timer Display */}
+                  <View style={styles.vestingTimerRow}>
+                    <Text style={styles.vestingTimer}>{formatCountdown(vestingSeconds)}</Text>
+                    <Text style={styles.vestingTimerLabel}>remaining</Text>
+                  </View>
+                  {/* Progress Bar */}
+                  <View style={styles.vestingBarBg}>
+                    <View style={[styles.vestingBarFill, { width: `${Math.round(vestingProgress * 100)}%` }]} />
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* ── Judge Sandbox Simulator Panel ── */}
+          <TouchableOpacity 
+            style={[styles.sandboxToggle, simulatorMode && styles.sandboxToggleActive]} 
+            onPress={handleToggleSimulator}
+            activeOpacity={0.8}
+          >
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <Text style={{fontSize: 20, marginRight: 8}}>🧠</Text>
+              <Text style={[styles.sandboxToggleText, simulatorMode && {color: colors.aqua}]}>
+                {simulatorMode ? 'EXIT JUDGE SANDBOX' : 'ENTER JUDGE SANDBOX'}
+              </Text>
+            </View>
+            {isSimLoading && <ActivityIndicator color={colors.aqua} size="small" />}
+          </TouchableOpacity>
+
+          {simulatorMode && (
+            <View style={styles.sandboxPanel}>
+              <Text style={styles.sandboxHeader}>ML Override Parameters</Text>
+              
+              {/* Rain Control */}
+              <View style={styles.sandboxControlRow}>
+                <View style={styles.sandboxLabelCol}>
+                  <Text style={styles.sandboxLabel}>🌧️ Rain (mm)</Text>
+                  <Text style={styles.sandboxValue}>{simRain.toFixed(1)} mm</Text>
+                </View>
+                <View style={styles.sandboxStepper}>
+                  <TouchableOpacity style={styles.stepperBtn} onPress={() => setSimRain(Math.max(0, simRain - 5))}><Text style={styles.stepperBtnText}>-</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.stepperBtn} onPress={() => setSimRain(simRain + 5)}><Text style={styles.stepperBtnText}>+</Text></TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Temp Control */}
+              <View style={styles.sandboxControlRow}>
+                <View style={styles.sandboxLabelCol}>
+                  <Text style={styles.sandboxLabel}>🌡️ Temp (°C)</Text>
+                  <Text style={styles.sandboxValue}>{simTemp.toFixed(1)} °C</Text>
+                </View>
+                <View style={styles.sandboxStepper}>
+                  <TouchableOpacity style={styles.stepperBtn} onPress={() => setSimTemp(Math.max(0, simTemp - 2))}><Text style={styles.stepperBtnText}>-</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.stepperBtn} onPress={() => setSimTemp(simTemp + 2)}><Text style={styles.stepperBtnText}>+</Text></TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Wind Control */}
+              <View style={styles.sandboxControlRow}>
+                <View style={styles.sandboxLabelCol}>
+                  <Text style={styles.sandboxLabel}>💨 Wind (km/h)</Text>
+                  <Text style={styles.sandboxValue}>{simWind.toFixed(1)} km/h</Text>
+                </View>
+                <View style={styles.sandboxStepper}>
+                  <TouchableOpacity style={styles.stepperBtn} onPress={() => setSimWind(Math.max(0, simWind - 10))}><Text style={styles.stepperBtnText}>-</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.stepperBtn} onPress={() => setSimWind(simWind + 10)}><Text style={styles.stepperBtnText}>+</Text></TouchableOpacity>
+                </View>
+              </View>
+              
+              <Text style={styles.sandboxWarning}>
+                Values instantly sent to backend xgb.DMatrix bypassing Open-Meteo. Prediction dynamically alters gauges below.
+              </Text>
+
+              {/* ── ML Output Panel ── */}
+              <View style={[styles.sandboxPanel, {marginTop: spacing.lg, backgroundColor: 'rgba(0,229,255,0.03)', borderColor: 'rgba(0,229,255,0.15)'}]}>
+                <Text style={[styles.sandboxHeader, {marginBottom: spacing.md}]}>ML Prediction Output</Text>
+                <View style={{flexDirection:'row', flexWrap:'wrap', gap: 10}}>
+                  {[
+                    {label: 'Loss Ratio', value: (premiumData.forecast_loss_ratio_7d * 100).toFixed(2) + '%', color: premiumData.forecast_loss_ratio_7d > 0.3 ? '#FF5252' : colors.success},
+                    {label: 'Risk Level', value: premiumData.disruption_risk?.toUpperCase(), color: premiumData.disruption_risk === 'extreme' ? '#FF5252' : premiumData.disruption_risk === 'high' ? '#FF9800' : colors.aqua},
+                    {label: 'Model', value: premiumData.model_version, color: colors.textSecondary},
+                    {label: 'R²', value: premiumData.model_r2?.toFixed(4), color: colors.textSecondary},
+                    {label: 'Suspended', value: premiumData.is_suspended ? '⛔ YES' : '✅ NO', color: premiumData.is_suspended ? '#FF5252' : colors.success},
+                  ].map((item, i) => (
+                    <View key={i} style={{minWidth: '45%', marginBottom: 8}}>
+                      <Text style={{color: colors.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5}}>{item.label}</Text>
+                      <Text style={{color: item.color, fontSize: 16, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'}}>{item.value}</Text>
+                    </View>
+                  ))}
+                </View>
+                {/* Active Triggers */}
+                <Text style={{color: colors.textMuted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, marginBottom: 6}}>Active Triggers Today</Text>
+                {premiumData.all_triggers_today?.filter((t: any) => t.active).length === 0 ? (
+                  <Text style={{color: colors.textMuted, fontSize: 12, fontStyle: 'italic'}}>No triggers active for current parameters</Text>
+                ) : (
+                  premiumData.all_triggers_today?.filter((t: any) => t.active).map((t: any, i: number) => (
+                    <View key={i} style={{flexDirection:'row', alignItems:'center', marginBottom: 4}}>
+                      <Text style={{fontSize: 14, marginRight: 6}}>{t.icon}</Text>
+                      <Text style={{color: '#FF9800', fontSize: 12, fontWeight: '600'}}>{t.trigger_name}</Text>
+                      <Text style={{color: colors.textMuted, fontSize: 10, marginLeft: 8}}>sev: {(t.severity * 100).toFixed(0)}%</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+
+              {/* ── Force Autopay Button ── */}
+              <TouchableOpacity
+                style={[styles.sandboxToggle, {marginTop: spacing.lg, backgroundColor: 'rgba(255, 152, 0, 0.1)', borderColor: 'rgba(255, 152, 0, 0.4)'}]}
+                onPress={handleForceAutopay}
+                disabled={isAutopaying}
+                activeOpacity={0.7}
+              >
+                <View style={{flexDirection:'row', alignItems:'center'}}>
+                  <Text style={{fontSize: 18, marginRight: 8}}>⚡</Text>
+                  <Text style={{color: colors.orange, fontWeight: 'bold', fontSize: 12, letterSpacing: 1}}>
+                    {isAutopaying ? 'PROCESSING PIPELINE...' : 'FORCE AUTOPAY TRIGGER'}
+                  </Text>
+                </View>
+                {isAutopaying && <ActivityIndicator color={colors.orange} size="small" />}
+              </TouchableOpacity>
+
+              {/* ── Security Pipeline Log ── */}
+              {pipelineLog.length > 0 && (
+                <View style={[styles.sandboxPanel, {marginTop: spacing.md, backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.08)'}]}>
+                  <Text style={[styles.sandboxHeader, {color: colors.orange}]}>8-Step Fraud Firewall Pipeline</Text>
+                  {pipelineLog.map((entry, i) => (
+                    <View key={i} style={{flexDirection:'row', alignItems:'center', marginBottom: 8}}>
+                      <Text style={{fontSize: 14, width: 22}}>
+                        {entry.status === 'pass' ? '✅' : entry.status === 'fail' ? '🚫' : entry.status === 'warn' ? '⚠️' : '⏳'}
+                      </Text>
+                      <Text style={{
+                        color: entry.status === 'pass' ? colors.success : entry.status === 'fail' ? '#FF5252' : entry.status === 'warn' ? colors.orange : colors.textMuted,
+                        fontSize: 11,
+                        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                        flex: 1,
+                      }}>{entry.step}</Text>
+                    </View>
+                  ))}
+                  {/* Result Banner */}
+                  {autopayResult && (
+                    <View style={{
+                      marginTop: 12,
+                      padding: 12,
+                      borderRadius: 8,
+                      backgroundColor: autopayResult.success ? 'rgba(76,175,80,0.15)' : 'rgba(255,82,82,0.15)',
+                      borderWidth: 1,
+                      borderColor: autopayResult.success ? 'rgba(76,175,80,0.4)' : 'rgba(255,82,82,0.4)',
+                    }}>
+                      <Text style={{color: autopayResult.success ? colors.success : '#FF5252', fontWeight: 'bold', fontSize: 13, marginBottom: 4}}>
+                        {autopayResult.success ? '✅ PAYOUT SETTLED' : '🚫 PAYOUT BLOCKED'}
+                      </Text>
+                      <Text style={{color: colors.textSecondary, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'}}>
+                        {autopayResult.success
+                          ? `₹${autopayResult.data?.payout?.amount} settled | Trust: ${autopayResult.data?.trust_score} | Tier: ${autopayResult.data?.trust_tier}`
+                          : autopayResult.error}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
           )}
 
           {/* ── Hero: Active plan banner ── */}
@@ -510,56 +841,7 @@ export default function DashboardScreen({ route, navigation }: Props) {
           <Text style={styles.sectionLabel}>CITY DISRUPTION FEED</Text>
           <CityAlertsFeed latitude={premiumData.latitude} longitude={premiumData.longitude} />
 
-          {/* ── Judge/Dev Testing Tool ── */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, paddingHorizontal: spacing.sm }}>
-            <Ionicons name="code-working-outline" size={18} color={colors.textMuted} />
-            <Text style={[styles.sectionLabel, { marginBottom: 0, marginLeft: 8 }]}>JUDGE / DEV TESTING TOOL</Text>
-          </View>
-          
-          <View style={[styles.claimCard, { backgroundColor: '#121418', borderColor: '#2D3139', borderStyle: 'dashed', borderWidth: 2 }]}>
-            <View style={{ backgroundColor: 'rgba(0, 229, 255, 0.05)', padding: spacing.md, borderRadius: borderRadius.md, borderWidth: 1, borderColor: 'rgba(0, 229, 255, 0.1)', marginBottom: spacing.lg }}>
-              <Text style={{ color: colors.aqua, fontSize: fontSize.xs, fontWeight: 'bold', marginBottom: 4, letterSpacing: 1 }}>
-                [ DEV_SANDBOX_ACTIVE ]
-              </Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
-                Production uses <Text style={{fontWeight: 'bold', color: '#FFF'}}>Zero-Touch Parametric Autopay</Text> scanning every 30s. This terminal bypasses the scheduler for immediate testing.
-              </Text>
-            </View>
-
-            {lossRatio > 0.15 ? (
-              <View style={styles.claimWarningRow}>
-                <Text style={styles.claimWarningIcon}>⚠️</Text>
-                <Text style={[styles.claimWarningText, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>
-                  {'>'} THRESHOLD_BREACHED: TRUE
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.claimWarningRow}>
-                <Text style={styles.claimSafeIcon}>🟢</Text>
-                <Text style={[styles.claimSafeText, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 }]}>
-                  {'>'} SYSTEM_STATUS: NORMAL
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[styles.claimButton, isSimulating && { opacity: 0.6 }, lossRatio <= 0.15 && { backgroundColor: 'rgba(255, 152, 0, 0.15)', borderColor: colors.orange, marginTop: spacing.md }]}
-              onPress={handleSimulate}
-              disabled={isSimulating}
-              activeOpacity={0.8}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="terminal-outline" size={16} color={lossRatio <= 0.15 ? colors.orange : '#FFF'} style={{ marginRight: 8 }} />
-                <Text style={[styles.claimButtonText, lossRatio <= 0.15 && { color: colors.orange }, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }]}>
-                  {isSimulating ? 'EXECUTING_PAYOUT...' : 'EXECUTE_FORCE_TRIGGER'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-            
-            <Text style={[styles.claimSubtext, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 9, opacity: 0.7 }]}>
-              POST /policy/payout/simulate
-            </Text>
-          </View>
+          {/* Old testing tool removed — now in Judge Sandbox above */}
 
           {/* ── Model Info ── */}
           <View style={styles.modelInfo}>
@@ -647,6 +929,87 @@ const styles = StyleSheet.create({
     color: colors.aqua,
     fontWeight: fontWeight.bold,
     fontSize: fontSize.md,
+  },
+
+  // Sandbox Sandbox
+  sandboxToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: spacing.md,
+  },
+  sandboxToggleActive: {
+    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+    borderColor: colors.aqua,
+  },
+  sandboxToggleText: {
+    color: colors.textSecondary,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 1,
+    fontSize: 12,
+  },
+  sandboxPanel: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.2)',
+    marginBottom: spacing.xl,
+  },
+  sandboxHeader: {
+    color: colors.aqua,
+    fontSize: 12,
+    fontWeight: fontWeight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: spacing.lg,
+  },
+  sandboxControlRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  sandboxLabelCol: {
+    flex: 1,
+  },
+  sandboxLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  sandboxValue: {
+    color: '#FFF',
+    fontSize: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: 'bold',
+  },
+  sandboxStepper: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+  },
+  stepperBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperBtnText: {
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: '300',
+  },
+  sandboxWarning: {
+    color: colors.textMuted,
+    fontSize: 10,
+    marginTop: spacing.sm,
+    fontStyle: 'italic',
   },
 
   // Hero
@@ -942,5 +1305,77 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: fontWeight.bold,
     letterSpacing: 0.5,
+  },
+
+  // Vesting Activation Timer
+  vestingBanner: {
+    backgroundColor: 'rgba(94, 234, 212, 0.06)',
+    borderRadius: borderRadius.xl,
+    marginBottom: spacing.xxl,
+    borderWidth: 1.5,
+    borderColor: 'rgba(94, 234, 212, 0.25)',
+    overflow: 'hidden',
+  },
+  vestingContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.lg,
+  },
+  vestingIconRow: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(94, 234, 212, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  vestingPulse: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(94, 234, 212, 0.5)',
+  },
+  vestingTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    color: colors.aqua,
+    marginBottom: 4,
+  },
+  vestingSubtitle: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 17,
+  },
+  vestingTimerRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 10,
+  },
+  vestingTimer: {
+    fontSize: 28,
+    fontWeight: fontWeight.heavy as any,
+    color: colors.aqua,
+    letterSpacing: 2,
+    fontVariant: ['tabular-nums'],
+  },
+  vestingTimerLabel: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginLeft: 8,
+  },
+  vestingBarBg: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  vestingBarFill: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.aqua,
   },
 });

@@ -3,7 +3,8 @@
  * Connects to the FastAPI backend on Render
  */
 
-const BASE_URL = 'https://gigshield-4u5z.onrender.com';
+export const BASE_URL = 'https://gigshield-4u5z.onrender.com'; // Production/Render
+// export const BASE_URL = 'http://localhost:8000'; // Local Testing
 
 // ─── Token Management ───────────────────────────────────────────────────────
 

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Image, Platform, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Image, Platform, Modal, Pressable, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme';
 import PlanCard from '../components/PlanCard';
+import { fetchUserProfile, updateUserProfile } from '../services/api';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import type { PremiumResponse } from '../services/api';
@@ -44,6 +45,11 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'standard' | 'premium'>('standard');
   const [showZoneInfo, setShowZoneInfo] = useState(false);
   const [showRiskInfo, setShowRiskInfo] = useState(false);
+  const [gigVerified, setGigVerified] = useState(false);
+  const [checkingVerification, setCheckingVerification] = useState(true);
+  const [gigId, setGigId] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [assignedRiderId, setAssignedRiderId] = useState('GG-2024-8842'); // Fallback default
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -52,9 +58,42 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
       Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 9, useNativeDriver: true }),
     ]).start();
+
+    // Check gig verification status
+    fetchUserProfile()
+      .then((data) => {
+        if (data?.gig_verified) {
+          setGigVerified(true);
+          if (data?.gig_id) setGigId(data.gig_id);
+        } else {
+          setGigId(data?.gig_rider_id || 'GG-2024-8842');
+        }
+        if (data?.gig_rider_id) setAssignedRiderId(data.gig_rider_id);
+      })
+      .catch(() => {})
+      .finally(() => setCheckingVerification(false));
   }, []);
 
+  const handleVerifyGig = () => {
+    if (!gigId) return;
+    setIsVerifying(true);
+    setTimeout(async () => {
+      try {
+        await updateUserProfile({ gig_verified: true, gig_id: gigId });
+        setGigVerified(true);
+      } catch (error) {
+        Alert.alert('Verification Failed', 'Could not verify your ID. Please try again.');
+      } finally {
+        setIsVerifying(false);
+      }
+    }, 2000);
+  };
+
   const handleActivate = () => {
+    if (!gigVerified) {
+      Alert.alert('\ud83d\udd10 Verification Required', 'Please verify your Gig Worker ID above before purchasing coverage.');
+      return;
+    }
     navigation.navigate('Payment', { premiumData, activePlan: selectedPlan });
   };
 
@@ -146,6 +185,61 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
               </View>
             </TouchableOpacity>
           </View>
+
+          {/* ─ Gig ID Verification Gate ─ */}
+          {!checkingVerification && !gigVerified && (
+            <View style={styles.verifyCard}>
+              <View style={styles.verifyCardHeader}>
+                <View style={styles.verifyIconWrap}>
+                  <Ionicons name="shield-checkmark" size={22} color={colors.orange} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.verifyCardTitle}>Verify Your Gig Worker ID</Text>
+                  <Text style={styles.verifyCardSub}>Required before purchasing coverage</Text>
+                </View>
+              </View>
+
+              <TextInput
+                style={[styles.verifyInput, { marginBottom: 14 }]}
+                placeholder="Enter ID e.g. GG-2024-1234"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={gigId}
+                onChangeText={setGigId}
+                autoCapitalize="characters"
+              />
+
+              <TouchableOpacity
+                style={[styles.verifyBtn, !gigId && { opacity: 0.5 }]}
+                onPress={handleVerifyGig}
+                disabled={isVerifying || !gigId}
+                activeOpacity={0.8}
+              >
+                {isVerifying ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#000" size="small" />
+                    <Text style={styles.verifyBtnText}>VERIFYING...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.verifyBtnText}>🔍 VERIFY NOW</Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.verifyNotice}>
+                <Ionicons name="information-circle-outline" size={13} color={colors.textMuted} />
+                <Text style={styles.verifyNoticeText}>
+                  Hackathon Demo: Any ID accepted. Production will verify via Swiggy/Zomato/Uber APIs.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Verified Success Banner */}
+          {!checkingVerification && gigVerified && (
+            <View style={styles.verifiedBanner}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Text style={styles.verifiedBannerText}>Gig Worker ID Verified — {gigId}</Text>
+            </View>
+          )}
 
           {/* ─ Plan cards ─ */}
           <Text style={styles.sectionLabel}>SELECT PROTECTION TIER</Text>
@@ -398,17 +492,36 @@ export default function PlanSelectionScreen({ navigation, route }: Props) {
 
       {/* ─ Floating CTA ─ */}
       <View style={styles.floatingFooter}>
+        {/* Verification Gate Banner */}
+        {!checkingVerification && !gigVerified && !premiumData?.is_suspended && (
+          <TouchableOpacity
+            style={styles.verifyGateBanner}
+            onPress={() => navigation.navigate('Profile' as any)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="lock-closed" size={16} color={colors.orange} />
+            <Text style={styles.verifyGateText}>
+              Verify your Gig Worker ID to unlock coverage
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.orange} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[
             styles.activateButton,
-            premiumData?.is_suspended && { opacity: 0.5, backgroundColor: colors.textMuted }
+            premiumData?.is_suspended && { opacity: 0.5, backgroundColor: colors.textMuted },
+            !gigVerified && !premiumData?.is_suspended && { opacity: 0.5, backgroundColor: '#374151' },
           ]}
           onPress={handleActivate}
           disabled={premiumData?.is_suspended}
           activeOpacity={0.8}
         >
           <Text style={styles.activateText}>
-            {premiumData?.is_suspended ? 'UNAVAILABLE' : 'Activate Coverage →'}
+            {premiumData?.is_suspended
+              ? 'UNAVAILABLE'
+              : !gigVerified
+                ? '🔒 Verify ID to Activate'
+                : 'Activate Coverage →'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -1142,5 +1255,117 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  verifyGateBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderRadius: borderRadius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    gap: 8,
+  },
+  verifyGateText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+    color: colors.orange,
+  },
+
+  // Inline Verification Card
+  verifyCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xxl,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 140, 0, 0.3)',
+  },
+  verifyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: spacing.lg,
+  },
+  verifyIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 140, 0, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  verifyCardTitle: {
+    fontSize: 16,
+    fontWeight: fontWeight.bold,
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  verifyCardSub: {
+    fontSize: 11,
+    color: colors.orange,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: 0.3,
+  },
+  verifyInput: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: borderRadius.md,
+    height: 50,
+    paddingHorizontal: 16,
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: 1,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 140, 0, 0.15)',
+  },
+  verifyBtn: {
+    backgroundColor: colors.orange,
+    height: 48,
+    borderRadius: borderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  verifyBtnText: {
+    fontSize: 14,
+    fontWeight: fontWeight.heavy,
+    color: '#000',
+    letterSpacing: 1,
+  },
+  verifyNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  verifyNoticeText: {
+    fontSize: 10,
+    color: colors.textMuted,
+    lineHeight: 14,
+    flex: 1,
+    fontStyle: 'italic',
+  },
+  verifiedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(0, 230, 118, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 118, 0.25)',
+    borderRadius: borderRadius.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: spacing.xxl,
+  },
+  verifiedBannerText: {
+    fontSize: 13,
+    fontWeight: fontWeight.bold,
+    color: colors.success,
+    flex: 1,
   },
 });
