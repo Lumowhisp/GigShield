@@ -38,7 +38,8 @@ from datetime import date, timedelta, datetime, timezone
 from typing import Optional, List
 
 import httpx
-import joblib
+import gc
+import xgboost as xgb
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
@@ -68,7 +69,7 @@ from disruption_triggers import (
 # CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 
-MODEL_PATH = "gigshield_v2_model.joblib"
+MODEL_PATH = "gigshield_v2_model.ubj"
 META_PATH  = "gigshield_v2_meta.json"
 
 # Fallback to original model if v2 not yet trained
@@ -455,9 +456,10 @@ async def startup_db_client():
         print(f"❌ MongoDB connection failed: {e}")
 
     # ── Start Autopay Scheduler ──
-    scheduler.add_job(autopay_trigger_scan, "interval", seconds=30, id="autopay_scan", replace_existing=True)
+    scheduler.add_job(autopay_trigger_scan, "interval", seconds=300, id="autopay_scan", replace_existing=True)
     scheduler.start()
     print("✅ Autopay scheduler started — scanning every 5 minutes")
+    gc.collect()  # Free memory after startup
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
@@ -465,26 +467,28 @@ async def shutdown_db_client():
     scheduler.shutdown(wait=False)
     app.mongodb_client.close()
 
-# Load model
-import os
+# Load model — native XGBoost Booster (no sklearn dependency, saves ~100MB RAM)
 try:
+    with open(META_PATH) as f:
+        MODEL_META = json.load(f)
+    FEATURE_COLS = MODEL_META["feature_cols"]
+
     if os.path.exists(MODEL_PATH):
-        MODEL = joblib.load(MODEL_PATH)
-        with open(META_PATH) as f:
-            MODEL_META = json.load(f)
-        FEATURE_COLS = MODEL_META["feature_cols"]
-        print(f"✅ GigShield v2 model loaded — {len(FEATURE_COLS)} features | Test R² {MODEL_META['test_r2']}")
-    elif os.path.exists(FALLBACK_MODEL):
-        MODEL = joblib.load(FALLBACK_MODEL)
-        with open(FALLBACK_META) as f:
-            MODEL_META = json.load(f)
-        FEATURE_COLS = MODEL_META["feature_cols"]
-        print(f"⚠️  Using fallback model — {len(FEATURE_COLS)} features | R² {MODEL_META['test_r2']}")
-        print(f"   Run build_and_train.py to create the v2 model.")
+        MODEL = xgb.Booster()
+        MODEL.load_model(MODEL_PATH)
+        print(f"✅ GigShield v2 model loaded (native) — {len(FEATURE_COLS)} features | Test R² {MODEL_META['test_r2']}")
     else:
-        raise FileNotFoundError("No model files found")
+        raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
+
+    gc.collect()
 except Exception as e:
     raise RuntimeError(f"Model loading failed: {e}")
+
+
+def predict_loss(X_matrix):
+    """Predict using native XGBoost Booster (no sklearn needed, saves ~100MB)."""
+    dmat = xgb.DMatrix(X_matrix)
+    return MODEL.predict(dmat)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1161,11 +1165,11 @@ async def predict_premium(req: PremiumRequest):
             X_forecast[col] = 0
 
     X_matrix = X_forecast[FEATURE_COLS].fillna(0).values
-    if X_matrix.shape[1] < len(MODEL.feature_importances_):
-        diff = len(MODEL.feature_importances_) - X_matrix.shape[1]
+    if X_matrix.shape[1] < len(FEATURE_COLS):
+        diff = len(FEATURE_COLS) - X_matrix.shape[1]
         X_matrix = np.hstack([X_matrix, np.zeros((X_matrix.shape[0], diff))])
 
-    day_preds = MODEL.predict(X_matrix).clip(0)
+    day_preds = predict_loss(X_matrix).clip(0)
     avg_loss_ratio = float(np.mean(day_preds))
 
     # ── Evaluate today's triggers ──
@@ -1331,11 +1335,11 @@ async def simulate_premium(req: PremiumSimulateRequest):
             X_forecast[col] = 0
 
     X_matrix = X_forecast[FEATURE_COLS].fillna(0).values
-    if X_matrix.shape[1] < len(MODEL.feature_importances_):
-        diff = len(MODEL.feature_importances_) - X_matrix.shape[1]
+    if X_matrix.shape[1] < len(FEATURE_COLS):
+        diff = len(FEATURE_COLS) - X_matrix.shape[1]
         X_matrix = np.hstack([X_matrix, np.zeros((X_matrix.shape[0], diff))])
 
-    day_preds = MODEL.predict(X_matrix).clip(0)
+    day_preds = predict_loss(X_matrix).clip(0)
     avg_loss_ratio = float(np.mean(day_preds))
 
     # 6. Evaluate today's triggers (identical to /premium)
@@ -2864,10 +2868,10 @@ async def admin_risk_forecast(request: Request):
         if col not in X_forecast.columns:
             X_forecast[col] = 0
     X_matrix = X_forecast[FEATURE_COLS].fillna(0).values
-    if X_matrix.shape[1] < len(MODEL.feature_importances_):
-        diff = len(MODEL.feature_importances_) - X_matrix.shape[1]
+    if X_matrix.shape[1] < len(FEATURE_COLS):
+        diff = len(FEATURE_COLS) - X_matrix.shape[1]
         X_matrix = np.hstack([X_matrix, np.zeros((X_matrix.shape[0], diff))])
-    day_preds = MODEL.predict(X_matrix).clip(0)
+    day_preds = predict_loss(X_matrix).clip(0)
 
     forecast_triggers = []
     for idx, (_, row) in enumerate(forecast_df.iterrows()):

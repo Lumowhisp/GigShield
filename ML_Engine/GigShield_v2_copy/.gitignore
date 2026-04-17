@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Large training data files — NOT needed for inference on Render
+training_data_v2.csv
+raw_combined_weather.csv
+feature_importance_v2.csv
+
+# Old model format (replaced by native .ubj)
+gigshield_v2_model.joblib
+
+# Audit/test scripts — not needed for deployment
+full_model_audit.py
+run_full_audit.py
+stress_test.py
+build_and_train.py
+Report/
