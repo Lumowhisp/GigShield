@@ -1,0 +1,70 @@
+PROPRIETARY SOFTWARE LICENSE
+All Rights Reserved
+
+Copyright (c) 2026 Aditya. All rights reserved.
+
+Acknowledged Contributor:
+  - Aarayan: Co-developed the Admin Dashboard (AdminDashboard/) only.
+
+1. OWNERSHIP
+   This software, including but not limited to all source code, documentation,
+   designs, assets, machine learning models, algorithms, and associated files
+   (collectively, the "Software"), is the sole and exclusive intellectual
+   property of the copyright holder named above (the "Owner").
+
+2. RESTRICTIONS
+   Unless explicitly authorized in writing by the Owner, no person or entity
+   may:
+
+   a) Copy, reproduce, distribute, or redistribute the Software in whole or
+      in part, in any form or medium.
+
+   b) Modify, adapt, translate, reverse engineer, decompile, or create
+      derivative works based on the Software.
+
+   c) Use the Software, in whole or in part, for any commercial or
+      non-commercial purpose.
+
+   d) Sublicense, lease, rent, loan, or transfer the Software to any third
+      party.
+
+   e) Present, showcase, claim, or imply ownership or authorship of the
+      Software — including but not limited to displaying it in portfolios,
+      resumes, CVs, project showcases, demo reels, academic submissions, or
+      any public or private presentations — without prior written consent
+      from the Owner.
+
+   f) Remove, alter, or obscure any copyright notices, proprietary markings,
+      or attribution statements contained in the Software.
+
+3. HACKATHON SUBMISSION & AUTHORSHIP CONTEXT
+   This Software was developed for a hackathon competition. The entirety of
+   the codebase — including the ML Engine, Backend API, Mobile App, Chatbot,
+   documentation, and all associated logic — was solely authored by the Owner
+   (Aditya). The only exception is the Admin Dashboard (AdminDashboard/),
+   which was co-developed with Aarayan.
+
+   No other team member contributed code to this project. Being listed as a
+   team member during the hackathon event does not constitute authorship or
+   contribution to the codebase, and does not grant any right to use,
+   present, or claim the Software as one's own work on resumes, portfolios,
+   or any other medium.
+
+4. PERMITTED USE
+   Viewing of this source code on the repository where it is hosted is
+   permitted solely for reference and educational purposes. This does not
+   grant any license to use, copy, modify, or distribute the Software.
+
+5. ENFORCEMENT
+   Any unauthorized use, reproduction, distribution, or misrepresentation of
+   this Software may result in legal action under applicable intellectual
+   property and copyright laws.
+
+6. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   OWNER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE
+   USE OF OR INABILITY TO USE THE SOFTWARE.
+
+For permissions or inquiries, contact the Owner directly.
