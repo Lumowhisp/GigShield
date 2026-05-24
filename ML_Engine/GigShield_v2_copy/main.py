@@ -598,45 +598,65 @@ async def fetch_weather_and_elevation(lat: float, lon: float, target_date: date 
     """Fetch 7-day archive (warmup) + 7-day forecast + elevation concurrently."""
     start = target_date or date.today()
     warmup_start = start - timedelta(days=7)
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        archive_resp, forecast_resp, elev_resp = await asyncio.gather(
-            client.get(
-                "https://archive-api.open-meteo.com/v1/archive",
-                params={
-                    "latitude": lat, "longitude": lon,
-                    "start_date": warmup_start.isoformat(),
-                    "end_date": (start - timedelta(days=1)).isoformat(),
-                    "daily": DAILY_VARS,
-                    "timezone": "Asia/Kolkata",
-                },
-            ),
-            client.get(
-                "https://api.open-meteo.com/v1/forecast",
-                params={
-                    "latitude": lat, "longitude": lon,
-                    "daily": DAILY_VARS,
-                    "forecast_days": 7,
-                    "timezone": "Asia/Kolkata",
-                },
-            ),
-            client.get(
-                "https://api.open-meteo.com/v1/elevation",
-                params={"latitude": lat, "longitude": lon},
-            ),
-        )
-
-    # ── Always extract elevation first (lightweight API, rarely fails) ──
     fallback_elevation = 200.0  # neutral mid-India default
-    if elev_resp.status_code == 200:
-        try:
-            elevs = elev_resp.json().get("elevation", [200.0])
-            fallback_elevation = float(elevs[0]) if elevs else 200.0
-        except Exception:
-            pass  # keep default
 
-    if archive_resp.status_code != 200 or forecast_resp.status_code != 200:
-        print(f"⚠️ Open-Meteo API Error (archive={archive_resp.status_code}, forecast={forecast_resp.status_code}). USING FALLBACK DEMO DATA. Elevation={fallback_elevation}m (real).")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            archive_resp, forecast_resp, elev_resp = await asyncio.gather(
+                client.get(
+                    "https://archive-api.open-meteo.com/v1/archive",
+                    params={
+                        "latitude": lat, "longitude": lon,
+                        "start_date": warmup_start.isoformat(),
+                        "end_date": (start - timedelta(days=1)).isoformat(),
+                        "daily": ",".join(DAILY_VARS),
+                        "timezone": "Asia/Kolkata",
+                    },
+                ),
+                client.get(
+                    "https://api.open-meteo.com/v1/forecast",
+                    params={
+                        "latitude": lat, "longitude": lon,
+                        "daily": ",".join(DAILY_VARS),
+                        "forecast_days": 7,
+                        "timezone": "Asia/Kolkata",
+                    },
+                ),
+                client.get(
+                    "https://api.open-meteo.com/v1/elevation",
+                    params={"latitude": lat, "longitude": lon},
+                ),
+            )
+
+        # ── Always extract elevation first (lightweight API, rarely fails) ──
+        if elev_resp.status_code == 200:
+            try:
+                elevs = elev_resp.json().get("elevation", [200.0])
+                fallback_elevation = float(elevs[0]) if elevs else 200.0
+            except Exception:
+                pass  # keep default
+
+        if archive_resp.status_code != 200 or forecast_resp.status_code != 200:
+            raise ValueError(f"Non-200 response from weather API (archive={archive_resp.status_code}, forecast={forecast_resp.status_code})")
+
+        # Elevation was already extracted above into fallback_elevation
+        elevation = fallback_elevation
+
+        archive_daily = archive_resp.json().get("daily", {})
+        forecast_daily = forecast_resp.json().get("daily", {})
+
+        required = ["time"] + DAILY_VARS
+        for key in required:
+            if key not in archive_daily:
+                archive_daily[key] = [0]*7
+            if key not in forecast_daily:
+                forecast_daily[key] = [0]*7
+
+        merged = {key: list(archive_daily[key]) + list(forecast_daily[key]) for key in required}
+        return merged, elevation
+
+    except Exception as e:
+        print(f"⚠️ Open-Meteo API Error: {e}. USING FALLBACK DEMO DATA. Elevation={fallback_elevation}m (real).")
         dates = [(start - timedelta(days=7 - i)).isoformat() for i in range(14)]
         # Warmup days (0-6) have moderate weather; forecast days (7-13) are calm
         # This prevents phantom trigger activations during demo fallback mode
@@ -651,22 +671,6 @@ async def fetch_weather_and_elevation(lat: float, lon: float, target_date: date 
             "precipitation_hours": [0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         }
         return mock_daily, fallback_elevation
-
-    # Elevation was already extracted above into fallback_elevation
-    elevation = fallback_elevation
-
-    archive_daily = archive_resp.json().get("daily", {})
-    forecast_daily = forecast_resp.json().get("daily", {})
-
-    required = ["time"] + DAILY_VARS
-    for key in required:
-        if key not in archive_daily:
-            archive_daily[key] = [0]*7
-        if key not in forecast_daily:
-            forecast_daily[key] = [0]*7
-
-    merged = {key: list(archive_daily[key]) + list(forecast_daily[key]) for key in required}
-    return merged, elevation
 
 
 # ─────────────────────────────────────────────────────────────────────────────
